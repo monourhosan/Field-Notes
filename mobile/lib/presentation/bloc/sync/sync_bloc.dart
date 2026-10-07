@@ -1,0 +1,37 @@
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../../domain/repositories/sync_repository.dart';
+import 'sync_event.dart';
+import 'sync_state.dart';
+
+class SyncBloc extends Bloc<SyncEvent, SyncState> {
+  final SyncRepository _syncRepository;
+
+  SyncBloc(this._syncRepository) : super(SyncInitial()) {
+    on<CheckPendingSync>(_onCheckPendingSync);
+    on<TriggerSync>(_onTriggerSync);
+  }
+
+  Future<void> _onCheckPendingSync(CheckPendingSync event, Emitter<SyncState> emit) async {
+    try {
+      final count = await _syncRepository.getPendingSyncCount();
+      emit(SyncIdle(count));
+    } catch (_) {
+      emit(const SyncIdle(0));
+    }
+  }
+
+  Future<void> _onTriggerSync(TriggerSync event, Emitter<SyncState> emit) async {
+    final currentCount = await _syncRepository.getPendingSyncCount();
+    emit(SyncInProgress(currentCount));
+    try {
+      await _syncRepository.syncAll();
+      final newCount = await _syncRepository.getPendingSyncCount();
+      emit(const SyncSuccess('Synchronization completed successfully'));
+      emit(SyncIdle(newCount));
+    } catch (e) {
+      final count = await _syncRepository.getPendingSyncCount();
+      emit(SyncFailure(e.toString().replaceAll('Exception: ', ''), count));
+      emit(SyncIdle(count));
+    }
+  }
+}

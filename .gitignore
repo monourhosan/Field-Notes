@@ -1,0 +1,33 @@
+# Backend build artifacts
+backend/target/
+**/target/
+*.class
+*.jar
+*.war
+
+# Flutter build artifacts
+mobile/build/
+**/build/
+.dart_tool/
+mobile/.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+
+# IDE and Editor
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+.classpath
+.project
+.settings/
+.factorypath
+
+# OS and Temporary files
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
