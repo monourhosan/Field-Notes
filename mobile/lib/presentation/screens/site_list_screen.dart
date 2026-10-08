@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+
 import '../../core/theme/app_theme.dart';
 import '../../domain/entities/sync_status.dart';
 import '../bloc/customer/customer_bloc.dart';
@@ -30,7 +31,11 @@ class _SiteListScreenState extends State<SiteListScreen> {
     final customerState = context.read<CustomerBloc>().state;
     if (customerState is! CustomerLoaded || customerState.customers.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please create at least one customer before adding a site.')),
+        const SnackBar(
+          content: Text(
+            'Please create at least one customer before adding a site.',
+          ),
+        ),
       );
       return;
     }
@@ -54,9 +59,14 @@ class _SiteListScreenState extends State<SiteListScreen> {
                   children: [
                     DropdownButtonFormField<String>(
                       initialValue: selectedCustomerId,
-                      decoration: const InputDecoration(labelText: 'Customer *'),
+                      decoration: const InputDecoration(
+                        labelText: 'Customer *',
+                      ),
                       items: customerState.customers.map((c) {
-                        return DropdownMenuItem(value: c.id, child: Text(c.name));
+                        return DropdownMenuItem(
+                          value: c.id,
+                          child: Text(c.name),
+                        );
                       }).toList(),
                       onChanged: (val) {
                         if (val != null) {
@@ -67,8 +77,12 @@ class _SiteListScreenState extends State<SiteListScreen> {
                     const SizedBox(height: 12),
                     TextFormField(
                       controller: nameController,
-                      decoration: const InputDecoration(labelText: 'Site Name *'),
-                      validator: (val) => (val == null || val.trim().isEmpty) ? 'Please enter site name' : null,
+                      decoration: const InputDecoration(
+                        labelText: 'Site Name *',
+                      ),
+                      validator: (val) => (val == null || val.trim().isEmpty)
+                          ? 'Please enter site name'
+                          : null,
                     ),
                     const SizedBox(height: 12),
                     TextFormField(
@@ -88,12 +102,12 @@ class _SiteListScreenState extends State<SiteListScreen> {
                   onPressed: () {
                     if (formKey.currentState?.validate() ?? false) {
                       context.read<SiteBloc>().add(
-                            CreateSiteEvent(
-                              customerId: selectedCustomerId,
-                              siteName: nameController.text.trim(),
-                              address: addressController.text.trim(),
-                            ),
-                          );
+                        CreateSiteEvent(
+                          customerId: selectedCustomerId,
+                          siteName: nameController.text.trim(),
+                          address: addressController.text.trim(),
+                        ),
+                      );
                       Navigator.of(ctx).pop();
                     }
                   },
@@ -144,10 +158,17 @@ class _SiteListScreenState extends State<SiteListScreen> {
                 return Card(
                   margin: const EdgeInsets.only(bottom: 10),
                   child: ListTile(
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
                     leading: const CircleAvatar(
                       backgroundColor: Color(0xFFCCFBF1),
-                      child: Icon(Icons.location_city, color: AppTheme.secondaryColor, size: 20),
+                      child: Icon(
+                        Icons.location_city,
+                        color: AppTheme.secondaryColor,
+                        size: 20,
+                      ),
                     ),
                     title: Row(
                       children: [
@@ -160,7 +181,11 @@ class _SiteListScreenState extends State<SiteListScreen> {
                         if (isPending)
                           Tooltip(
                             message: 'Offline changes pending sync',
-                            child: Icon(Icons.cloud_upload_outlined, size: 16, color: Colors.amber.shade800),
+                            child: Icon(
+                              Icons.cloud_upload_outlined,
+                              size: 16,
+                              color: Colors.amber.shade800,
+                            ),
                           ),
                       ],
                     ),
@@ -169,18 +194,28 @@ class _SiteListScreenState extends State<SiteListScreen> {
                       children: [
                         Text(
                           'Customer: ${site.customerName ?? "Unknown"}',
-                          style: const TextStyle(fontSize: 13, color: AppTheme.primaryColor, fontWeight: FontWeight.w600),
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: AppTheme.primaryColor,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                         if (site.address?.isNotEmpty == true)
                           Text(
                             site.address!,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppTheme.textSecondary,
+                            ),
                           ),
                       ],
                     ),
-                    trailing: const Icon(Icons.chevron_right, color: AppTheme.textSecondary),
+                    trailing: const Icon(
+                      Icons.chevron_right,
+                      color: AppTheme.textSecondary,
+                    ),
                     onTap: () async {
                       await Navigator.of(context).push(
                         MaterialPageRoute(

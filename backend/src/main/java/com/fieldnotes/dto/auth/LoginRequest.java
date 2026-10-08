@@ -1,12 +1,15 @@
 package com.fieldnotes.dto.auth;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 
 public class LoginRequest {
     @NotBlank(message = "Username or email is required")
+    @Size(max = 150)
     private String username;
 
     @NotBlank(message = "Password is required")
+    @Size(max = 72)
     private String password;
 
     public LoginRequest() {}

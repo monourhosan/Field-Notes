@@ -3,6 +3,7 @@ package com.fieldnotes.service;
 import com.fieldnotes.dto.note.FieldNoteDto;
 import com.fieldnotes.dto.note.FieldNoteRequest;
 import com.fieldnotes.exception.ResourceNotFoundException;
+import com.fieldnotes.exception.ConflictException;
 import com.fieldnotes.model.FieldNote;
 import com.fieldnotes.model.Site;
 import com.fieldnotes.repository.FieldNoteRepository;
@@ -28,12 +29,14 @@ public class FieldNoteService {
 
     @Transactional
     public FieldNoteDto createNote(Long userId, FieldNoteRequest request) {
-        Site site = siteRepository.findByIdAndCustomerUserIdAndDeletedFalse(request.getSiteId(), userId)
+        Site site = siteRepository.findByIdAndCustomerUserIdAndDeletedFalseAndCustomerDeletedFalse(request.getSiteId(), userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Site not found or not owned by user: " + request.getSiteId()));
 
         String noteId = (request.getId() != null && !request.getId().isBlank())
                 ? request.getId()
                 : UUID.randomUUID().toString();
+
+        if (fieldNoteRepository.existsById(noteId)) throw new ConflictException("Record ID already exists");
 
         FieldNote note = new FieldNote(
                 noteId,
@@ -46,7 +49,7 @@ public class FieldNoteService {
                 request.getPhoto()
         );
 
-        note = fieldNoteRepository.save(note);
+        note = fieldNoteRepository.saveAndFlush(note);
         return new FieldNoteDto(note);
     }
 
@@ -64,22 +67,23 @@ public class FieldNoteService {
 
     @Transactional(readOnly = true)
     public FieldNoteDto getNoteById(Long userId, String noteId) {
-        FieldNote note = fieldNoteRepository.findByIdAndSiteCustomerUserIdAndDeletedFalse(noteId, userId)
+        FieldNote note = fieldNoteRepository.findByIdAndSiteCustomerUserIdAndDeletedFalseAndSiteDeletedFalseAndSiteCustomerDeletedFalse(noteId, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Field note not found: " + noteId));
         return new FieldNoteDto(note);
     }
 
     @Transactional
     public FieldNoteDto updateNote(Long userId, String noteId, FieldNoteRequest request) {
-        FieldNote note = fieldNoteRepository.findByIdAndSiteCustomerUserIdAndDeletedFalse(noteId, userId)
+        FieldNote note = fieldNoteRepository.findByIdAndSiteCustomerUserIdAndDeletedFalseAndSiteDeletedFalseAndSiteCustomerDeletedFalse(noteId, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Field note not found: " + noteId));
 
         if (request.getSiteId() != null && !request.getSiteId().equals(note.getSite().getId())) {
-            Site site = siteRepository.findByIdAndCustomerUserIdAndDeletedFalse(request.getSiteId(), userId)
+            Site site = siteRepository.findByIdAndCustomerUserIdAndDeletedFalseAndCustomerDeletedFalse(request.getSiteId(), userId)
                     .orElseThrow(() -> new ResourceNotFoundException("Site not found or not owned by user: " + request.getSiteId()));
             note.setSite(site);
         }
 
+        if (!java.util.Objects.equals(request.getVersion(), note.getVersion())) throw new ConflictException("Stale record version");
         note.setTitle(request.getTitle().trim());
         note.setDescription(request.getDescription());
         note.setLocation(request.getLocation());
@@ -87,22 +91,20 @@ public class FieldNoteService {
             note.setDateTime(request.getDateTime());
         }
         note.setStatus(request.getStatus());
-        if (request.getPhoto() != null) {
-            note.setPhoto(request.getPhoto());
-        }
+        note.setPhoto(request.getPhoto());
         note.setUpdatedAt(Instant.now());
 
-        note = fieldNoteRepository.save(note);
+        note = fieldNoteRepository.saveAndFlush(note);
         return new FieldNoteDto(note);
     }
 
     @Transactional
     public void deleteNote(Long userId, String noteId) {
-        FieldNote note = fieldNoteRepository.findByIdAndSiteCustomerUserIdAndDeletedFalse(noteId, userId)
+        FieldNote note = fieldNoteRepository.findByIdAndSiteCustomerUserIdAndDeletedFalseAndSiteDeletedFalseAndSiteCustomerDeletedFalse(noteId, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Field note not found: " + noteId));
 
         note.setDeleted(true);
         note.setUpdatedAt(Instant.now());
-        fieldNoteRepository.save(note);
+        fieldNoteRepository.saveAndFlush(note);
     }
 }

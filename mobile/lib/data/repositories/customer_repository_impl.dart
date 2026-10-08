@@ -1,6 +1,8 @@
+import '../../core/validation.dart';
+
 import 'package:sqflite/sqflite.dart';
 import 'package:uuid/uuid.dart';
-import '../../core/constants/api_constants.dart';
+
 import '../../domain/entities/customer.dart';
 import '../../domain/entities/sync_status.dart';
 import '../../domain/repositories/customer_repository.dart';
@@ -11,16 +13,19 @@ import '../remote/api_client.dart';
 
 class CustomerRepositoryImpl implements CustomerRepository {
   final DatabaseHelper _dbHelper;
-  final ApiClient _apiClient;
   final SettingsLocalDataSource _settingsDataSource;
   final Uuid _uuid = const Uuid();
 
-  CustomerRepositoryImpl(this._dbHelper, this._apiClient, this._settingsDataSource);
+  CustomerRepositoryImpl(
+    this._dbHelper,
+    ApiClient apiClient,
+    this._settingsDataSource,
+  );
 
   @override
   Future<List<Customer>> getCustomers() async {
     final db = await _dbHelper.database;
-    final userId = _settingsDataSource.getUserId() ?? 0;
+    final userId = _settingsDataSource.requireUserId();
 
     final maps = await db.query(
       'customers',
@@ -35,7 +40,7 @@ class CustomerRepositoryImpl implements CustomerRepository {
   @override
   Future<Customer?> getCustomerById(String id) async {
     final db = await _dbHelper.database;
-    final userId = _settingsDataSource.getUserId() ?? 0;
+    final userId = _settingsDataSource.requireUserId();
 
     final maps = await db.query(
       'customers',
@@ -51,9 +56,14 @@ class CustomerRepositoryImpl implements CustomerRepository {
   }
 
   @override
-  Future<Customer> createCustomer({required String name, String? contactInformation}) async {
+  Future<Customer> createCustomer({
+    required String name,
+    String? contactInformation,
+  }) async {
+    RecordValidation.text(name, 'Name', 255, required: true);
+    RecordValidation.text(contactInformation, 'Contact information', 16000);
     final db = await _dbHelper.database;
-    final userId = _settingsDataSource.getUserId() ?? 0;
+    final userId = _settingsDataSource.requireUserId();
     final now = DateTime.now();
     final id = _uuid.v4();
 
@@ -68,36 +78,25 @@ class CustomerRepositoryImpl implements CustomerRepository {
       syncStatus: SyncStatus.pendingCreate,
     );
 
-    await db.insert('customers', model.toDbMap(), conflictAlgorithm: ConflictAlgorithm.replace);
+    await db.insert(
+      'customers',
+      model.toDbMap(),
+      conflictAlgorithm: ConflictAlgorithm.abort,
+    );
 
-    // Try online sync immediately
-    try {
-      final response = await _apiClient.post(
-        ApiConstants.customers,
-        body: {
-          'id': id,
-          'name': name,
-          'contactInformation': contactInformation,
-        },
-      );
-      if (response.statusCode == 201 || response.statusCode == 200) {
-        model = CustomerModel.fromEntity(model.copyWith(syncStatus: SyncStatus.synced));
-        await db.update(
-          'customers',
-          {'sync_status': SyncStatus.synced.toDbString()},
-          where: 'id = ?',
-          whereArgs: [id],
-        );
-      }
-    } catch (_) {
-      // Offline: keep as PENDING_CREATE
-    }
+    _dbHelper.notifyChange();
 
     return model;
   }
 
   @override
-  Future<Customer> updateCustomer({required String id, required String name, String? contactInformation}) async {
+  Future<Customer> updateCustomer({
+    required String id,
+    required String name,
+    String? contactInformation,
+  }) async {
+    RecordValidation.text(name, 'Name', 255, required: true);
+    RecordValidation.text(contactInformation, 'Contact information', 16000);
     final db = await _dbHelper.database;
     final now = DateTime.now();
 
@@ -112,34 +111,26 @@ class CustomerRepositoryImpl implements CustomerRepository {
       existing.copyWith(
         name: name,
         contactInformation: contactInformation,
+        clearContactInformation: contactInformation == null,
         updatedAt: now,
         syncStatus: newStatus,
       ),
     );
 
-    await db.update('customers', updated.toDbMap(), where: 'id = ?', whereArgs: [id]);
-
-    // Try online sync
-    try {
-      final response = await _apiClient.put(
-        '${ApiConstants.customers}/$id',
-        body: {
-          'name': name,
-          'contactInformation': contactInformation,
-        },
+    await db.transaction((txn) async {
+      await txn.update(
+        'customers',
+        updated.toDbMap(),
+        where: 'id = ?',
+        whereArgs: [id],
       );
-      if (response.statusCode == 200) {
-        updated = CustomerModel.fromEntity(updated.copyWith(syncStatus: SyncStatus.synced));
-        await db.update(
-          'customers',
-          {'sync_status': SyncStatus.synced.toDbString()},
-          where: 'id = ?',
-          whereArgs: [id],
-        );
-      }
-    } catch (_) {
-      // Offline: keep pending status
-    }
+      await txn.rawUpdate(
+        'UPDATE customers SET local_revision = local_revision + 1 WHERE id = ?',
+        [id],
+      );
+    });
+
+    _dbHelper.notifyChange();
 
     return updated;
   }
@@ -152,32 +143,20 @@ class CustomerRepositoryImpl implements CustomerRepository {
     final existing = await getCustomerById(id);
     if (existing == null) return;
 
-    if (existing.syncStatus == SyncStatus.pendingCreate) {
-      // Not yet on server, can be completely deleted locally
-      await db.delete('customers', where: 'id = ?', whereArgs: [id]);
-      return;
-    }
-
-    // Mark as pending delete
-    await db.update(
-      'customers',
-      {
-        'is_deleted': 1,
-        'sync_status': SyncStatus.pendingDelete.toDbString(),
-        'updated_at': now.toIso8601String(),
-      },
-      where: 'id = ?',
-      whereArgs: [id],
-    );
-
-    // Try online delete
-    try {
-      final response = await _apiClient.delete('${ApiConstants.customers}/$id');
-      if (response.statusCode == 204 || response.statusCode == 200) {
-        await db.delete('customers', where: 'id = ?', whereArgs: [id]);
-      }
-    } catch (_) {
-      // Offline: keep soft-deleted and pendingDelete
-    }
+    await db.transaction((txn) async {
+      await txn.rawUpdate(
+        "UPDATE field_notes SET is_deleted = 1, sync_status = 'SYNCED' WHERE site_id IN (SELECT id FROM sites WHERE customer_id = ?)",
+        [id],
+      );
+      await txn.rawUpdate(
+        "UPDATE sites SET is_deleted = 1, sync_status = 'SYNCED' WHERE customer_id = ?",
+        [id],
+      );
+      await txn.rawUpdate(
+        "UPDATE customers SET is_deleted = 1, sync_status = 'PENDING_DELETE', updated_at = ?, local_revision = local_revision + 1 WHERE id = ?",
+        [now.toUtc().toIso8601String(), id],
+      );
+    });
+    _dbHelper.notifyChange();
   }
 }

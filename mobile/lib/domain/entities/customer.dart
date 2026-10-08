@@ -1,7 +1,9 @@
 import 'package:equatable/equatable.dart';
+
 import 'sync_status.dart';
 
 class Customer extends Equatable {
+  final int? serverVersion;
   final String id;
   final int userId;
   final String name;
@@ -12,6 +14,7 @@ class Customer extends Equatable {
   final SyncStatus syncStatus;
 
   const Customer({
+    this.serverVersion,
     required this.id,
     required this.userId,
     required this.name,
@@ -23,20 +26,25 @@ class Customer extends Equatable {
   });
 
   Customer copyWith({
+    int? serverVersion,
     String? id,
     int? userId,
     String? name,
     String? contactInformation,
+    bool clearContactInformation = false,
     DateTime? createdAt,
     DateTime? updatedAt,
     bool? isDeleted,
     SyncStatus? syncStatus,
   }) {
     return Customer(
+      serverVersion: serverVersion ?? this.serverVersion,
       id: id ?? this.id,
       userId: userId ?? this.userId,
       name: name ?? this.name,
-      contactInformation: contactInformation ?? this.contactInformation,
+      contactInformation: clearContactInformation
+          ? null
+          : (contactInformation ?? this.contactInformation),
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       isDeleted: isDeleted ?? this.isDeleted,
@@ -45,5 +53,15 @@ class Customer extends Equatable {
   }
 
   @override
-  List<Object?> get props => [id, userId, name, contactInformation, createdAt, updatedAt, isDeleted, syncStatus];
+  List<Object?> get props => [
+    serverVersion,
+    id,
+    userId,
+    name,
+    contactInformation,
+    createdAt,
+    updatedAt,
+    isDeleted,
+    syncStatus,
+  ];
 }

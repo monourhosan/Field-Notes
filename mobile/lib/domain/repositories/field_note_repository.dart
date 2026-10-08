@@ -1,7 +1,11 @@
 import '../entities/field_note.dart';
 
 abstract class FieldNoteRepository {
-  Future<List<FieldNote>> getNotes({String? query, String? siteId, String? status});
+  Future<List<FieldNote>> getNotes({
+    String? query,
+    String? siteId,
+    String? status,
+  });
   Future<FieldNote?> getNoteById(String id);
   Future<FieldNote> createNote({
     required String siteId,

@@ -35,6 +35,14 @@ public class AuthService {
 
     @Transactional
     public AuthResponse register(RegisterRequest request) {
+        if (request.getPassword().getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 72) {
+            throw new BadRequestException("Password exceeds 72 UTF-8 bytes");
+        }
+        request.setUsername(request.getUsername().trim());
+        if (request.getUsername().length() < 3) {
+            throw new BadRequestException("Username must contain at least 3 characters");
+        }
+        request.setEmail(request.getEmail().trim().toLowerCase(java.util.Locale.ROOT));
         if (userRepository.existsByUsername(request.getUsername())) {
             throw new BadRequestException("Username is already taken");
         }
@@ -44,7 +52,7 @@ public class AuthService {
 
         User user = new User(
                 request.getUsername().trim(),
-                request.getEmail().trim().toLowerCase(),
+                request.getEmail(),
                 passwordEncoder.encode(request.getPassword())
         );
 
@@ -60,14 +68,17 @@ public class AuthService {
     }
 
     public AuthResponse login(LoginRequest request) {
+        if (request.getPassword().getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 72) {
+            throw new BadRequestException("Password exceeds 72 UTF-8 bytes");
+        }
+        request.setUsername(request.getUsername().trim());
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword())
         );
         SecurityContextHolder.getContext().setAuthentication(authentication);
 
         String jwt = tokenProvider.generateToken(authentication);
-        User user = userRepository.findByUsername(request.getUsername())
-                .or(() -> userRepository.findByEmail(request.getUsername()))
+        User user = userRepository.findById(((com.fieldnotes.security.UserPrincipal) authentication.getPrincipal()).getId())
                 .orElseThrow(() -> new BadRequestException("User not found"));
 
         return new AuthResponse(jwt, user.getId(), user.getUsername(), user.getEmail());

@@ -4,7 +4,7 @@ Field inspection application with a Flutter client, local SQLite storage, and a 
 
 ## Architecture
 
-- `backend/`: Java 21, Spring Boot 3.5.16, Spring Security, BCrypt, signed JWTs, Spring Data JPA, MySQL-compatible database, Flyway.
+- `backend/`: Java 21, Spring Boot 3.5.16, Spring Security, BCrypt, signed JWTs, Spring Data JPA, MySQL, Flyway.
 - `mobile/lib/domain/`: entities and repository contracts.
 - `mobile/lib/data/`: SQLite repositories, models, secure token storage, HTTP client, reconciliation.
 - `mobile/lib/presentation/`: BLoCs, screens, widgets and foreground sync coordinator.
@@ -35,9 +35,9 @@ Deleting a customer soft-deletes its sites and notes. Deleting a site soft-delet
 
 ## Backend setup
 
-Install Java 21 and Maven 3.9+, and start MySQL 8+ or a maintained MariaDB release. Create `field_notes_db` and a dedicated application user. Give the migration account schema permissions; use a separate runtime account with data permissions in production if supplying `SPRING_FLYWAY_USER` and `SPRING_FLYWAY_PASSWORD`.
+Install Java 21 and Maven 3.9+, and start MySQL 8+. MySQL satisfies the database stack required by `installation.pdf`. Create `field_notes_db` and a dedicated application user. Give the migration account schema permissions; use a separate runtime account with data permissions in production if supplying `SPRING_FLYWAY_USER` and `SPRING_FLYWAY_PASSWORD`.
 
-For MariaDB, set `DB_URL=jdbc:mariadb://localhost:3306/field_notes_db`; both vendor JDBC drivers are included and selected from the URL.
+The MariaDB JDBC driver remains available for existing installations, but the PDF conformity verification uses MySQL 8.4.11.
 
 Required environment variables:
 
@@ -53,6 +53,15 @@ java -jar target/field-notes-backend-1.0.0.jar
 ```
 
 On this workstation, an ignored `backend/.env.local.json` contains generated local development credentials. `scripts/start-backend.ps1` loads it when present and also supports ordinary environment variables. It accepts `-Java` for a Java executable outside PATH. Never commit this file or deploy its local credentials.
+
+MySQL 8.4.11 is installed separately under `%USERPROFILE%/.cache/field-notes-audit/mysql`, listening on loopback port 3307. Existing application records were copied with row counts checked, and the local backend configuration now selects MySQL. The original XAMPP MariaDB database and its backup remain intact. Restart this local MySQL instance and backend from the project root:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-mysql.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-backend.ps1 -Java "C:/Users/lette/.cache/field-notes-audit/java/jdk-21.0.12.1+1/bin/java.exe"
+```
+
+These commands apply execution policy only to the launched process. They do not install Windows services; production should use its own managed database and application lifecycle.
 
 Flyway upgrades the schema; Hibernate validates it. Automatic baselining is disabled, so an unversioned existing database needs an explicit reviewed migration rather than silently accepting an unknown schema. Back up production data before upgrades.
 
@@ -106,4 +115,6 @@ flutter test test/live_sync_verification.dart
 
 The smoke script needs a running backend and creates two uniquely named test accounts and test records. It soft-deletes its records after checking authentication, ownership, CRUD versions, search, sync idempotency and cascading tombstones. Override `API_BASE_URL` to use another dedicated test backend.
 
-See `AUDIT_REPORT.md` for the actual audit results and platform verification limits. Passing tests are evidence for the scenarios exercised, not a guarantee that every possible bug has been eliminated.
+The GitHub workflow in `.github/workflows/build.yml` builds and tests the Maven/Java 21 backend and Flutter app, provisions MySQL, runs live API/offline/reinstall checks, and compiles web and Android outputs. The previous Gradle/Java 17 workflow did not match this project. The workflow has been checked locally; a hosted Actions run still requires committing and pushing the changes.
+
+See [REQUIREMENTS_COMPLIANCE.md](REQUIREMENTS_COMPLIANCE.md) for the complete `installation.pdf` mapping and [AUDIT_REPORT.md](AUDIT_REPORT.md) for audit evidence and platform verification limits. Passing tests are evidence for the scenarios exercised, not a guarantee that every possible bug has been eliminated.

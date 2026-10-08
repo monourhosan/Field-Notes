@@ -1,70 +1,151 @@
+import 'dart:convert';
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
 import '../../core/constants/api_constants.dart';
 
 class SettingsLocalDataSource {
-  static const String _keyDefaultNoteStatus = 'default_note_status';
-  static const String _keyBaseUrl = 'base_url';
-  static const String _keyToken = 'auth_token';
-  static const String _keyUserId = 'auth_user_id';
-  static const String _keyUsername = 'auth_username';
-  static const String _keyEmail = 'auth_email';
-  static const String _keyLastSyncTime = 'last_sync_timestamp';
-
   final SharedPreferences _prefs;
-
-  SettingsLocalDataSource(this._prefs);
-
+  final FlutterSecureStorage _secureStorage;
+  Map<String, dynamic>? _session;
+  Future<void> Function(String)? onServerChanged;
+  SettingsLocalDataSource(this._prefs, {FlutterSecureStorage? secureStorage})
+    : _secureStorage = secureStorage ?? const FlutterSecureStorage();
   static Future<SettingsLocalDataSource> create() async {
-    final prefs = await SharedPreferences.getInstance();
-    return SettingsLocalDataSource(prefs);
+    final result = SettingsLocalDataSource(
+      await SharedPreferences.getInstance(),
+    );
+    await result.initialize();
+    return result;
   }
 
-  // Default note status (locally persisted, does not sync with backend)
+  Future<void> initialize() async {
+    final encoded = await _secureStorage.read(key: 'auth_session');
+    if (encoded != null) {
+      try {
+        final candidate = jsonDecode(encoded) as Map<String, dynamic>;
+        if (candidate['token'] is! String ||
+            candidate['userId'] is! int ||
+            candidate['username'] is! String ||
+            candidate['email'] is! String) {
+          throw const FormatException('Invalid session');
+        }
+        _session = candidate;
+      } catch (_) {
+        await _secureStorage.delete(key: 'auth_session');
+      }
+    } else {
+      final token =
+          await _secureStorage.read(key: 'auth_token') ??
+          _prefs.getString('auth_token');
+      final userId = _prefs.getInt('auth_user_id');
+      final username = _prefs.getString('auth_username');
+      final email = _prefs.getString('auth_email');
+      if (token != null &&
+          userId != null &&
+          username != null &&
+          email != null) {
+        await saveAuthData(
+          token: token,
+          userId: userId,
+          username: username,
+          email: email,
+        );
+      }
+    }
+    await _secureStorage.delete(key: 'auth_token');
+    await _clearLegacyAuth();
+  }
+
+  Future<void> _clearLegacyAuth() async {
+    for (final key in [
+      'auth_token',
+      'auth_user_id',
+      'auth_username',
+      'auth_email',
+    ]) {
+      await _prefs.remove(key);
+    }
+  }
+
   String getDefaultNoteStatus() {
-    return _prefs.getString(_keyDefaultNoteStatus) ?? 'DRAFT';
+    final status = _prefs.getString('default_note_status');
+    return ['DRAFT', 'IN_PROGRESS', 'COMPLETED', 'PENDING'].contains(status)
+        ? status!
+        : 'DRAFT';
   }
 
   Future<void> setDefaultNoteStatus(String status) async {
-    await _prefs.setString(_keyDefaultNoteStatus, status);
+    if (!['DRAFT', 'IN_PROGRESS', 'COMPLETED', 'PENDING'].contains(status)) {
+      throw ArgumentError('Invalid status');
+    }
+    await _prefs.setString('default_note_status', status);
   }
 
-  // Base URL
-  String getBaseUrl() {
-    return _prefs.getString(_keyBaseUrl) ?? ApiConstants.defaultBaseUrl;
-  }
-
+  String getBaseUrl() =>
+      _prefs.getString('base_url') ??
+      ((!kIsWeb && defaultTargetPlatform == TargetPlatform.android)
+          ? ApiConstants.emulatorBaseUrl
+          : ApiConstants.defaultBaseUrl);
   Future<void> setBaseUrl(String url) async {
-    await _prefs.setString(_keyBaseUrl, url);
+    final uri = Uri.tryParse(url);
+    if (uri == null ||
+        !['http', 'https'].contains(uri.scheme) ||
+        uri.host.isEmpty ||
+        uri.userInfo.isNotEmpty ||
+        uri.hasQuery ||
+        uri.hasFragment ||
+        (uri.path.isNotEmpty && uri.path != '/')) {
+      throw ArgumentError(
+        'Use a server origin, such as https://notes.example.com, without /api',
+      );
+    }
+    if (kReleaseMode && uri.scheme != 'https') {
+      throw ArgumentError('Release builds require HTTPS');
+    }
+    if (url != getBaseUrl() && getUserId() != null) {
+      throw StateError('Sign out before changing servers');
+    }
+    final normalized = uri.origin;
+    await onServerChanged?.call(normalized);
+    await _prefs.setString('base_url', normalized);
   }
 
-  // Auth credentials
-  String? getToken() => _prefs.getString(_keyToken);
-  int? getUserId() => _prefs.getInt(_keyUserId);
-  String? getUsername() => _prefs.getString(_keyUsername);
-  String? getEmail() => _prefs.getString(_keyEmail);
-
+  String? getToken() => _session?['token'] as String?;
+  int? getUserId() => _session?['userId'] as int?;
+  int requireUserId() =>
+      getUserId() ?? (throw StateError('Sign in to access records'));
+  String get accountKey => '${getBaseUrl()}|${requireUserId()}';
+  String? getUsername() => _session?['username'] as String?;
+  String? getEmail() => _session?['email'] as String?;
   Future<void> saveAuthData({
     required String token,
     required int userId,
     required String username,
     required String email,
   }) async {
-    await _prefs.setString(_keyToken, token);
-    await _prefs.setInt(_keyUserId, userId);
-    await _prefs.setString(_keyUsername, username);
-    await _prefs.setString(_keyEmail, email);
+    final next = <String, dynamic>{
+      'token': token,
+      'userId': userId,
+      'username': username,
+      'email': email,
+    };
+    // One secure write and one in-memory assignment: token and identity never diverge.
+    await _secureStorage.write(key: 'auth_session', value: jsonEncode(next));
+    _session = next;
+    await _clearLegacyAuth();
   }
 
   Future<void> clearAuthData() async {
-    await _prefs.remove(_keyToken);
-    await _prefs.remove(_keyUserId);
-    await _prefs.remove(_keyUsername);
-    await _prefs.remove(_keyEmail);
+    _session = null;
+    await _secureStorage.delete(key: 'auth_session');
+    await _secureStorage.delete(key: 'auth_token');
+    await _clearLegacyAuth();
   }
 
-  // Sync timestamps
-  int getLastSyncTime() => _prefs.getInt(_keyLastSyncTime) ?? 0;
-  Future<void> setLastSyncTime(int timestamp) async {
-    await _prefs.setInt(_keyLastSyncTime, timestamp);
-  }
+  int getLastSyncTime() => _prefs.getInt('sync_$accountKey') ?? 0;
+  Future<void> setLastSyncTime(int timestamp) async =>
+      _prefs.setInt('sync_$accountKey', timestamp);
 }

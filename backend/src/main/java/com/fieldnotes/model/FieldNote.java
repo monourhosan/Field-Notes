@@ -7,6 +7,11 @@ import java.time.Instant;
 @Table(name = "field_notes")
 public class FieldNote {
 
+    @Version
+    private Long version;
+
+    public Long getVersion() { return version; }
+
     @Id
     @Column(length = 36)
     private String id;
@@ -24,7 +29,7 @@ public class FieldNote {
     @Column(length = 255)
     private String location;
 
-    @Column(name = "date_time")
+    @Column(name = "date_time", columnDefinition = "DATETIME(6)")
     private Instant dateTime;
 
     @Column(nullable = false, length = 50)

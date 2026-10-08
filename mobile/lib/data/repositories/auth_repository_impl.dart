@@ -1,4 +1,5 @@
 import 'dart:convert';
+
 import '../../core/constants/api_constants.dart';
 import '../../domain/entities/user.dart';
 import '../../domain/repositories/auth_repository.dart';
@@ -14,16 +15,16 @@ class AuthRepositoryImpl implements AuthRepository {
 
   @override
   Future<User> register(String username, String email, String password) async {
+    final server = _settingsDataSource.getBaseUrl();
     final response = await _apiClient.post(
       ApiConstants.register,
-      body: {
-        'username': username,
-        'email': email,
-        'password': password,
-      },
+      body: {'username': username, 'email': email, 'password': password},
     );
 
     if (response.statusCode == 201 || response.statusCode == 200) {
+      if (_settingsDataSource.getBaseUrl() != server) {
+        throw StateError('Server changed during sign in; try again');
+      }
       final json = jsonDecode(response.body);
       final user = UserModel.fromJson(json);
       await _settingsDataSource.saveAuthData(
@@ -34,22 +35,23 @@ class AuthRepositoryImpl implements AuthRepository {
       );
       return user;
     } else {
-      final body = jsonDecode(response.body);
-      throw Exception(body['message'] ?? 'Registration failed with status ${response.statusCode}');
+      _apiClient.requireSuccess(response);
+      throw StateError('Unexpected registration response');
     }
   }
 
   @override
   Future<User> login(String username, String password) async {
+    final server = _settingsDataSource.getBaseUrl();
     final response = await _apiClient.post(
       ApiConstants.login,
-      body: {
-        'username': username,
-        'password': password,
-      },
+      body: {'username': username, 'password': password},
     );
 
     if (response.statusCode == 200) {
+      if (_settingsDataSource.getBaseUrl() != server) {
+        throw StateError('Server changed during sign in; try again');
+      }
       final json = jsonDecode(response.body);
       final user = UserModel.fromJson(json);
       await _settingsDataSource.saveAuthData(
@@ -60,8 +62,8 @@ class AuthRepositoryImpl implements AuthRepository {
       );
       return user;
     } else {
-      final body = jsonDecode(response.body);
-      throw Exception(body['message'] ?? 'Login failed with status ${response.statusCode}');
+      _apiClient.requireSuccess(response);
+      throw StateError('Unexpected login response');
     }
   }
 
@@ -73,12 +75,7 @@ class AuthRepositoryImpl implements AuthRepository {
     final email = _settingsDataSource.getEmail();
 
     if (token != null && userId != null && username != null && email != null) {
-      return User(
-        id: userId,
-        username: username,
-        email: email,
-        token: token,
-      );
+      return User(id: userId, username: username, email: email, token: token);
     }
     return null;
   }

@@ -6,15 +6,25 @@ abstract class FieldNoteEvent extends Equatable {
   List<Object?> get props => [];
 }
 
+class RefreshFieldNotes extends FieldNoteEvent {
+  const RefreshFieldNotes();
+}
+
 class LoadFieldNotes extends FieldNoteEvent {
+  final bool reset;
   final String? query;
   final String? siteId;
   final String? status;
 
-  const LoadFieldNotes({this.query, this.siteId, this.status});
+  const LoadFieldNotes({
+    this.reset = false,
+    this.query,
+    this.siteId,
+    this.status,
+  });
 
   @override
-  List<Object?> get props => [query, siteId, status];
+  List<Object?> get props => [reset, query, siteId, status];
 }
 
 class CreateFieldNoteEvent extends FieldNoteEvent {
@@ -37,7 +47,15 @@ class CreateFieldNoteEvent extends FieldNoteEvent {
   });
 
   @override
-  List<Object?> get props => [siteId, title, description, location, dateTime, status, photo];
+  List<Object?> get props => [
+    siteId,
+    title,
+    description,
+    location,
+    dateTime,
+    status,
+    photo,
+  ];
 }
 
 class UpdateFieldNoteEvent extends FieldNoteEvent {
@@ -62,7 +80,16 @@ class UpdateFieldNoteEvent extends FieldNoteEvent {
   });
 
   @override
-  List<Object?> get props => [id, siteId, title, description, location, dateTime, status, photo];
+  List<Object?> get props => [
+    id,
+    siteId,
+    title,
+    description,
+    location,
+    dateTime,
+    status,
+    photo,
+  ];
 }
 
 class DeleteFieldNoteEvent extends FieldNoteEvent {

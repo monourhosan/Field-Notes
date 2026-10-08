@@ -10,6 +10,7 @@ spring:
     password: ""
     driver-class-name: org.h2.Driver
   jpa:
+    open-in-view: false
     hibernate:
       ddl-auto: create-drop
     properties:
@@ -21,5 +22,5 @@ spring:
 
 app:
   jwt:
-    secret: fieldNotesSecretKeyForJwtTokenGenerationAndValidation2026SecureKeyWith256BitsMinimumLength!
+    secret: test-only-signing-key-not-for-production-0000000000000000000000000
     expiration-ms: 86400000

@@ -3,7 +3,11 @@ package com.fieldnotes.dto.customer;
 import com.fieldnotes.model.Customer;
 import java.time.Instant;
 
+
 public class CustomerDto {
+    private Long version;
+    public Long getVersion() { return version; }
+
     private String id;
     private Long userId;
     private String name;
@@ -15,6 +19,7 @@ public class CustomerDto {
     public CustomerDto() {}
 
     public CustomerDto(Customer customer) {
+        this.version = customer.getVersion();
         this.id = customer.getId();
         this.userId = customer.getUser().getId();
         this.name = customer.getName();

@@ -1,182 +1,108 @@
 package com.fieldnotes.service;
-
 import com.fieldnotes.dto.customer.CustomerDto;
-import com.fieldnotes.dto.note.FieldNoteDto;
 import com.fieldnotes.dto.site.SiteDto;
-import com.fieldnotes.dto.sync.SyncPullResponse;
-import com.fieldnotes.dto.sync.SyncPushRequest;
-import com.fieldnotes.dto.sync.SyncPushResponse;
-import com.fieldnotes.model.Customer;
-import com.fieldnotes.model.FieldNote;
-import com.fieldnotes.model.Site;
-import com.fieldnotes.model.User;
-import com.fieldnotes.repository.CustomerRepository;
-import com.fieldnotes.repository.FieldNoteRepository;
-import com.fieldnotes.repository.SiteRepository;
-import com.fieldnotes.repository.UserRepository;
+import com.fieldnotes.dto.note.FieldNoteDto;
+import com.fieldnotes.dto.sync.*;
+import com.fieldnotes.model.*;
+import com.fieldnotes.repository.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
 import java.time.Instant;
-import java.util.Optional;
-import java.util.stream.Collectors;
+import java.util.Objects;
 
 @Service
 public class SyncService {
-
-    private final CustomerRepository customerRepository;
-    private final SiteRepository siteRepository;
-    private final FieldNoteRepository fieldNoteRepository;
-    private final UserRepository userRepository;
-
-    public SyncService(CustomerRepository customerRepository,
-                       SiteRepository siteRepository,
-                       FieldNoteRepository fieldNoteRepository,
-                       UserRepository userRepository) {
-        this.customerRepository = customerRepository;
-        this.siteRepository = siteRepository;
-        this.fieldNoteRepository = fieldNoteRepository;
-        this.userRepository = userRepository;
+    private final CustomerRepository customers;
+    private final SiteRepository sites;
+    private final FieldNoteRepository notes;
+    private final UserRepository users;
+    public SyncService(CustomerRepository customers, SiteRepository sites, FieldNoteRepository notes, UserRepository users) {
+        this.customers = customers; this.sites = sites; this.notes = notes; this.users = users;
     }
-
+    // Storage failures roll back the entire batch. Stale edits remain pending for explicit review.
     @Transactional
     public SyncPushResponse pushSync(Long userId, SyncPushRequest request) {
-        SyncPushResponse response = new SyncPushResponse();
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("User not found: " + userId));
-
-        // 1. Process Customers
-        for (SyncPushRequest.CustomerSyncItem cItem : request.getCustomers()) {
-            try {
-                Optional<Customer> existingOpt = customerRepository.findByIdAndUserId(cItem.getId(), userId);
-                if (existingOpt.isPresent()) {
-                    Customer existing = existingOpt.get();
-                    Instant clientUpdated = (cItem.getUpdatedAt() != null) ? Instant.ofEpochMilli(cItem.getUpdatedAt()) : Instant.now();
-                    // Last-Write-Wins: if client update is newer or same as existing
-                    if (!clientUpdated.isBefore(existing.getUpdatedAt())) {
-                        existing.setName(cItem.getName());
-                        existing.setContactInformation(cItem.getContactInformation());
-                        existing.setDeleted(cItem.isDeleted());
-                        existing.setUpdatedAt(Instant.now());
-                        customerRepository.save(existing);
-                    }
-                } else if (!cItem.isDeleted()) {
-                    Customer newCustomer = new Customer(
-                            cItem.getId(),
-                            user,
-                            cItem.getName(),
-                            cItem.getContactInformation()
-                    );
-                    customerRepository.save(newCustomer);
-                }
-                response.getSyncedCustomerIds().add(cItem.getId());
-            } catch (Exception ex) {
-                response.getConflicts().add("Customer " + cItem.getId() + ": " + ex.getMessage());
+        var response = new SyncPushResponse();
+        var user = users.findById(userId).orElseThrow();
+        for (var item : request.getCustomers()) {
+            var current = customers.findById(item.getId()).orElse(null);
+            if (current != null && !current.getUser().getId().equals(userId)) {
+                response.getConflicts().add("Customer " + item.getId() + ": unavailable"); continue;
             }
-        }
-
-        // 2. Process Sites
-        for (SyncPushRequest.SiteSyncItem sItem : request.getSites()) {
-            try {
-                Optional<Site> existingOpt = siteRepository.findByIdAndCustomerUserId(sItem.getId(), userId);
-                if (existingOpt.isPresent()) {
-                    Site existing = existingOpt.get();
-                    Instant clientUpdated = (sItem.getUpdatedAt() != null) ? Instant.ofEpochMilli(sItem.getUpdatedAt()) : Instant.now();
-                    if (!clientUpdated.isBefore(existing.getUpdatedAt())) {
-                        existing.setSiteName(sItem.getSiteName());
-                        existing.setAddress(sItem.getAddress());
-                        existing.setDeleted(sItem.isDeleted());
-                        existing.setUpdatedAt(Instant.now());
-                        siteRepository.save(existing);
-                    }
-                } else if (!sItem.isDeleted()) {
-                    Customer customer = customerRepository.findByIdAndUserId(sItem.getCustomerId(), userId)
-                            .orElse(null);
-                    if (customer != null) {
-                        Site newSite = new Site(
-                                sItem.getId(),
-                                customer,
-                                sItem.getSiteName(),
-                                sItem.getAddress()
-                        );
-                        siteRepository.save(newSite);
-                    }
-                }
-                response.getSyncedSiteIds().add(sItem.getId());
-            } catch (Exception ex) {
-                response.getConflicts().add("Site " + sItem.getId() + ": " + ex.getMessage());
+            if (current != null && current.isDeleted() && !item.isDeleted()) {
+                response.getConflicts().add("Customer " + item.getId() + ": deleted on server"); continue;
             }
-        }
-
-        // 3. Process Field Notes
-        for (SyncPushRequest.FieldNoteSyncItem nItem : request.getNotes()) {
-            try {
-                Optional<FieldNote> existingOpt = fieldNoteRepository.findByIdAndSiteCustomerUserId(nItem.getId(), userId);
-                if (existingOpt.isPresent()) {
-                    FieldNote existing = existingOpt.get();
-                    Instant clientUpdated = (nItem.getUpdatedAt() != null) ? Instant.ofEpochMilli(nItem.getUpdatedAt()) : Instant.now();
-                    if (!clientUpdated.isBefore(existing.getUpdatedAt())) {
-                        existing.setTitle(nItem.getTitle());
-                        existing.setDescription(nItem.getDescription());
-                        existing.setLocation(nItem.getLocation());
-                        if (nItem.getDateTime() != null) {
-                            existing.setDateTime(Instant.ofEpochMilli(nItem.getDateTime()));
-                        }
-                        existing.setStatus(nItem.getStatus());
-                        if (nItem.getPhoto() != null) {
-                            existing.setPhoto(nItem.getPhoto());
-                        }
-                        existing.setDeleted(nItem.isDeleted());
-                        existing.setUpdatedAt(Instant.now());
-                        fieldNoteRepository.save(existing);
-                    }
-                } else if (!nItem.isDeleted()) {
-                    Site site = siteRepository.findByIdAndCustomerUserId(nItem.getSiteId(), userId).orElse(null);
-                    if (site != null) {
-                        FieldNote newNote = new FieldNote(
-                                nItem.getId(),
-                                site,
-                                nItem.getTitle(),
-                                nItem.getDescription(),
-                                nItem.getLocation(),
-                                nItem.getDateTime() != null ? Instant.ofEpochMilli(nItem.getDateTime()) : Instant.now(),
-                                nItem.getStatus(),
-                                nItem.getPhoto()
-                        );
-                        fieldNoteRepository.save(newNote);
-                    }
+            if (current == null) {
+                if (item.getBaseVersion() != null) { response.getConflicts().add("Customer " + item.getId() + ": missing"); continue; }
+                current = new Customer(item.getId(), user, item.getName().trim(), item.getContactInformation());
+            } else if (!Objects.equals(item.getBaseVersion(), current.getVersion())) {
+                if (Objects.equals(current.getName(), item.getName()) && Objects.equals(current.getContactInformation(), item.getContactInformation()) && current.isDeleted() == item.isDeleted()) {
+                    response.getSyncedCustomerIds().add(item.getId()); response.getCustomerVersions().put(item.getId(), current.getVersion()); continue;
                 }
-                response.getSyncedNoteIds().add(nItem.getId());
-            } catch (Exception ex) {
-                response.getConflicts().add("Note " + nItem.getId() + ": " + ex.getMessage());
+                response.getConflicts().add("Customer " + item.getId() + ": newer server version"); continue;
             }
+            current.setName(item.getName().trim()); current.setContactInformation(item.getContactInformation()); current.setDeleted(item.isDeleted());
+            if (item.isDeleted()) for (var site : sites.findByCustomerId(current.getId())) {
+                site.setDeleted(true); site.setUpdatedAt(Instant.now());
+                for (var note : notes.findBySiteId(site.getId())) { note.setDeleted(true); note.setUpdatedAt(Instant.now()); }
+            }
+            customers.saveAndFlush(current); response.getSyncedCustomerIds().add(item.getId()); response.getCustomerVersions().put(item.getId(), current.getVersion());
         }
-
-        response.setServerTimestamp(System.currentTimeMillis());
+        for (var item : request.getSites()) {
+            var parent = customers.findByIdAndUserId(item.getCustomerId(), userId).orElse(null);
+            var current = sites.findById(item.getId()).orElse(null);
+            if (parent == null || (!item.isDeleted() && parent.isDeleted()) || (current != null && !current.getCustomer().getUser().getId().equals(userId))) {
+                response.getConflicts().add("Site " + item.getId() + ": unavailable parent or record"); continue;
+            }
+            if (current != null && current.isDeleted() && !item.isDeleted()) {
+                response.getConflicts().add("Site " + item.getId() + ": deleted on server"); continue;
+            }
+            if (current == null) {
+                if (item.getBaseVersion() != null) { response.getConflicts().add("Site " + item.getId() + ": missing"); continue; }
+                current = new Site(item.getId(), parent, item.getSiteName().trim(), item.getAddress());
+            } else if (!Objects.equals(item.getBaseVersion(), current.getVersion())) {
+                if (Objects.equals(current.getSiteName(), item.getSiteName()) && Objects.equals(current.getAddress(), item.getAddress()) && current.getCustomer().getId().equals(item.getCustomerId()) && current.isDeleted() == item.isDeleted()) {
+                    response.getSyncedSiteIds().add(item.getId()); response.getSiteVersions().put(item.getId(), current.getVersion()); continue;
+                }
+                response.getConflicts().add("Site " + item.getId() + ": newer server version"); continue;
+            }
+            current.setCustomer(parent); current.setSiteName(item.getSiteName().trim()); current.setAddress(item.getAddress()); current.setDeleted(item.isDeleted());
+            if (item.isDeleted()) for (var note : notes.findBySiteId(current.getId())) { note.setDeleted(true); note.setUpdatedAt(Instant.now()); }
+            sites.saveAndFlush(current); response.getSyncedSiteIds().add(item.getId()); response.getSiteVersions().put(item.getId(), current.getVersion());
+        }
+        for (var item : request.getNotes()) {
+            var parent = sites.findByIdAndCustomerUserId(item.getSiteId(), userId).orElse(null);
+            var current = notes.findById(item.getId()).orElse(null);
+            if (parent == null || (!item.isDeleted() && (parent.isDeleted() || parent.getCustomer().isDeleted())) || (current != null && !current.getSite().getCustomer().getUser().getId().equals(userId))) {
+                response.getConflicts().add("Note " + item.getId() + ": unavailable parent or record"); continue;
+            }
+            Instant date = item.getDateTime() == null ? null : Instant.ofEpochMilli(item.getDateTime());
+            if (current != null && current.isDeleted() && !item.isDeleted()) {
+                response.getConflicts().add("Note " + item.getId() + ": deleted on server"); continue;
+            }
+            if (current == null) {
+                if (item.getBaseVersion() != null) { response.getConflicts().add("Note " + item.getId() + ": missing"); continue; }
+                current = new FieldNote(item.getId(), parent, item.getTitle().trim(), item.getDescription(), item.getLocation(), date == null ? Instant.now() : date, item.getStatus(), item.getPhoto());
+            } else if (!Objects.equals(item.getBaseVersion(), current.getVersion())) {
+                if (Objects.equals(current.getTitle(), item.getTitle()) && Objects.equals(current.getDescription(), item.getDescription()) && Objects.equals(current.getLocation(), item.getLocation()) && Objects.equals(current.getPhoto(), item.getPhoto()) && Objects.equals(current.getStatus(), item.getStatus()) && current.getSite().getId().equals(item.getSiteId()) && (date == null || current.getDateTime().toEpochMilli() == date.toEpochMilli()) && current.isDeleted() == item.isDeleted()) {
+                    response.getSyncedNoteIds().add(item.getId()); response.getNoteVersions().put(item.getId(), current.getVersion()); continue;
+                }
+                response.getConflicts().add("Note " + item.getId() + ": newer server version"); continue;
+            }
+            current.setSite(parent); current.setTitle(item.getTitle().trim()); current.setDescription(item.getDescription()); current.setLocation(item.getLocation());
+            if (date != null) current.setDateTime(date);
+            current.setStatus(item.getStatus()); current.setPhoto(item.getPhoto()); current.setDeleted(item.isDeleted());
+            notes.saveAndFlush(current); response.getSyncedNoteIds().add(item.getId()); response.getNoteVersions().put(item.getId(), current.getVersion());
+        }
         return response;
     }
-
+    // Full reconciliation avoids cursor gaps from concurrent transactions and includes tombstones.
     @Transactional(readOnly = true)
     public SyncPullResponse pullSync(Long userId, Instant since) {
-        SyncPullResponse response = new SyncPullResponse();
-        Instant querySince = (since != null) ? since : Instant.EPOCH;
-
-        response.setCustomers(
-                customerRepository.findByUserIdAndUpdatedAtAfter(userId, querySince)
-                        .stream().map(CustomerDto::new).collect(Collectors.toList())
-        );
-
-        response.setSites(
-                siteRepository.findByCustomerUserIdAndUpdatedAtAfter(userId, querySince)
-                        .stream().map(SiteDto::new).collect(Collectors.toList())
-        );
-
-        response.setNotes(
-                fieldNoteRepository.findBySiteCustomerUserIdAndUpdatedAtAfter(userId, querySince)
-                        .stream().map(FieldNoteDto::new).collect(Collectors.toList())
-        );
-
-        response.setServerTimestamp(System.currentTimeMillis());
+        var response = new SyncPullResponse();
+        response.setCustomers(customers.findByUserIdAndUpdatedAtAfter(userId, Instant.EPOCH).stream().map(CustomerDto::new).toList());
+        response.setSites(sites.findByCustomerUserIdAndUpdatedAtAfter(userId, Instant.EPOCH).stream().map(SiteDto::new).toList());
+        response.setNotes(notes.findBySiteCustomerUserIdAndUpdatedAtAfter(userId, Instant.EPOCH).stream().map(FieldNoteDto::new).toList());
         return response;
     }
 }

@@ -11,59 +11,32 @@ Registration/login, customer/site/note CRUD, photo attachment/removal, inspectio
 ## Findings and repairs
 
 | Area | Finding | Result |
-
 | --- | --- | --- |
-
 | Ownership | Local lists/outbox and cursor crossed account boundaries | User-scoped joins, account guards, server-specific database files |
-
 | Security | Supplied IDs could merge over another user's records | Explicit collision rejection, owned parent checks, new-entity persist semantics |
-
 | Sync | Device clock determined who overwrote whom | Server optimistic versions; stale writes become conflicts |
-
 | Sync | Invalid parents could be silently acknowledged | Explicit conflicts; only persisted records are acknowledged |
-
 | Transactions | Item-level exception handling could conceal failed batches | Storage failures roll back the transaction; client keeps outbox |
-
 | Data loss | Pull could overwrite unsent edits | Pending changes remain local; conflicts retain both versions |
-
 | Concurrent edits | Server could change between upload acknowledgement and pull | Acknowledgements return exact accepted versions; intervening edits are reviewed |
-
 | Concurrent edits | Local changes/deletion during upload could be discarded or resurrected | Monotonic local revisions and pending deletion tombstones |
-
 | Conflict review | Identical IDs across entity types collided in journal | Composite account/type/ID keys and v3 migration |
-
 | Conflict review | Old review could discard a newer local edit | Current content displayed; reviewed local revision checked transactionally |
-
 | Deletion | Parent deletion left active descendants | Server cascade soft deletion, local cascade hiding and tombstone reconciliation |
-
 | Migration | Legacy local rows lacked constraints and could be orphaned | Foreign keys, indexes, preserved outbox and orphan recovery journal |
-
 | Authentication | Token and identity were persisted separately | Atomic secure session record; legacy preferences migrated |
-
 | Authentication | Bad credentials/oversize UTF-8 passwords and trimmed names were mishandled | Consistent 401/400 responses, bounds and normalization |
-
 | API | Malformed JSON, nested null items, invalid queries and storage failures lacked reliable errors | Validation and structured client/server errors |
-
 | Security | Default secrets/root database access, broad CORS, unlimited request size | Required external secrets, dedicated DB user, exact CORS, 8 MiB cap and auth rate limit |
-
 | Networking | Requests had no timeout and release transport was insecure | Bounded HTTP requests, meaningful errors and HTTPS enforcement |
-
 | UI persistence | Editor closed before storage success; photo/text could not be cleared | Save acknowledgement controls navigation; errors retain form; explicit nullable clearing |
-
 | UI/state | Defaults and asynchronous list loads could be stale | Startup defaults, restartable loads, serialized mutation/auth handlers |
-
 | Photos | Corrupt content could throw; decoding repeated on rebuilds | Cached decode and safe fallback rendering |
-
 | Date/time | Local/UTC display differed; allowed inspection dates exceeded TIMESTAMP range | UTC persistence/local display; DATETIME(6) migration and range validation |
-
 | Performance | Outbox counts loaded full photos; upload retained every payload; idle sync transferred full photos | SQL counts, bounded payload assembly, version-only ETags and conditional pulls |
-
 | Queries | Lazy parent access caused repeated queries | Entity graphs for parent information and relationship indexes |
-
 | Builds | Android cleartext manifest merge and Windows Kotlin cache failed | Explicit manifest overrides and disabled problematic incremental cache |
-
 | Database driver | MySQL driver misidentified local MariaDB version | Both vendor drivers supported; local MariaDB URL selects its driver |
-
 | Deployment | Release used debug signing; permissions/secure-storage setup incomplete | External release signing configuration, platform permissions and entitlements |
 
 ## Verification
@@ -90,7 +63,7 @@ Registration/login, customer/site/note CRUD, photo attachment/removal, inspectio
 
 Camera/GPS permissions and native lifecycle behavior still require a physical device or emulator. iOS/macOS compilation and signing require a Mac with Xcode; they were not verified on this Windows workstation. Release signing keys and a deployed HTTPS endpoint were not supplied.
 
-The local XAMPP database is MariaDB 10.4.32. Use a maintained database release for deployment; this audit did not replace or upgrade the user's existing database installation. The application requires production TLS, managed secrets, backups and edge rate limiting. SQLite inspection data uses OS/browser profile storage protection and is not separately encrypted.
+The original XAMPP database is MariaDB 10.4.32. The later PDF implementation pass installed MySQL 8.4.11 separately and copied the application data with count checks; see the latest verification below. The original database remains intact. The application requires production TLS, managed secrets, backups and edge rate limiting. SQLite inspection data uses OS/browser profile storage protection and is not separately encrypted.
 
 Changed accounts still reconcile a complete snapshot, including inline photos. Conditional pulls avoid unchanged transfers, but large-account deployment needs measured load tests and potentially pagination/blob storage. Foreground synchronization is implemented; the OS does not guarantee synchronization while the application is terminated.
 
@@ -126,3 +99,22 @@ Final deployment clearance is conditional: native device acceptance, iOS/macOS i
 - ADB reported no connected devices or emulators. Native runtime acceptance was not performed.
 
 **Final status:** backend, local database, authentication, APIs, Flutter builds, offline persistence, synchronization and automated tests pass in the tested environment. No known unresolved critical application defects were found in the exercised scope. Production deployment is not yet cleared because its signing, HTTPS/environment configuration, maintained database, device acceptance and backup/load verification have not been completed against the actual deployment target.
+
+## Latest installation.pdf implementation verification — 8 October 2026
+
+This section supersedes the earlier test counts and database environment. [REQUIREMENTS_COMPLIANCE.md](REQUIREMENTS_COMPLIANCE.md) maps every PDF software requirement to the implementation and evidence, and distinguishes document process notes from software requirements.
+
+- Backend: a fresh Java 21 Maven clean/package passed **21 tests** and produced the executable JAR.
+- Flutter: the final `flutter analyze` reported **no issues**; the final `flutter test` passed **40 tests**.
+- Release builds: `flutter build web --release --output=build/web-release` and `flutter build apk --release` passed after the final application changes; the release APK is approximately **58.5 MB**. `aapt dump permissions` confirms only network/location and the Android receiver permission; broad photo-library/storage permissions are absent. Release signature verification still reports an unsigned artifact because no owner keystore was supplied.
+- Debug builds: the refreshed Android APK and web preview build passed. The debug APK's v2 signature verifies, making it installable for device acceptance. The final web output includes the SQLite worker and WASM assets.
+- MySQL: **8.4.11**, loopback port 3307, dedicated application user. Existing records and Flyway history were copied from MariaDB while the backend was stopped, and counts for users/customers/sites/notes matched before test records were added. The original database and a SQL backup remain intact.
+- Existing-data startup: MySQL connection, Flyway validation and Hibernate schema validation passed. **33 live API checks** passed against this backend.
+- Clean installation: an isolated empty MySQL schema applied V1-V3 and passed Hibernate validation. Another **33 live API checks** passed against that server. The temporary server, schema and private test configuration were removed afterward.
+- Offline/reinstall integration: the explicit Flutter live test passed against both MySQL setups. It writes while disconnected, closes/reopens a real SQLite file, retains pending changes after a failed request, uploads after reconnection, clears preferences/secure session, logs in again into an empty database, restores photos/contact/address, resolves a second-device conflict, and propagates cascade deletion.
+- Automatic sync: the coordinator test covers restored-session startup, edits queued during upload, reconnection, foreground resume and no upload after logout. Active customer and note search/site/status filters remain selected after sync refresh.
+- Permissions/UI: tests cover disabled GPS, denied/permanently denied location, camera/gallery plugin denial without losing input, and an unavailable preselected site without a dropdown crash. Settings actions and a GPS timeout were added. Readable date/text separators replace corrupt characters.
+- CI: the workflow YAML was parsed and checked. It uses Maven/Java 21, Flutter, a MySQL service, offline tests, live API/recovery checks, web release and Android debug/release compilation. A hosted run has not been triggered from this working tree.
+- `scripts/verify.ps1 -LiveApi` now includes the explicit offline/sync/reinstall integration test after its API checks. PowerShell launch/verification scripts parse successfully; local credentials remain ignored and `git diff --check` passes.
+
+The bundled Flyway 11.7.2 emits a compatibility warning for MySQL 8.4. Migrations, validation, live API and Flutter integration operations succeeded; the warning was not hidden. Native hardware acceptance, Android signing, iOS/macOS compilation if released, deployed HTTPS and measured production backup/load checks remain environment-dependent. The PDF's preference to avoid heavy reliance on coding agents cannot be fulfilled retroactively by agent-written changes.

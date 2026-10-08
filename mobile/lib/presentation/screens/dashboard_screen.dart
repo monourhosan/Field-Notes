@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+
 import '../../core/theme/app_theme.dart';
 import '../bloc/auth/auth_bloc.dart';
 import '../bloc/auth/auth_event.dart';
@@ -72,9 +73,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
               icon: const Icon(Icons.settings_outlined),
               tooltip: 'Settings',
               onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const SettingsScreen()),
-                ).then((_) => _refreshData());
+                Navigator.of(context)
+                    .push(
+                      MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                    )
+                    .then((_) => _refreshData());
               },
             ),
           ],
@@ -96,7 +99,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       // Welcome header
                       BlocBuilder<AuthBloc, AuthState>(
                         builder: (context, state) {
-                          final username = (state is Authenticated) ? state.user.username : 'Worker';
+                          final username = (state is Authenticated)
+                              ? state.user.username
+                              : 'Worker';
                           return Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -130,18 +135,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               title: 'Customers',
                               bloc: BlocBuilder<CustomerBloc, CustomerState>(
                                 builder: (context, state) {
-                                  final count = (state is CustomerLoaded) ? state.customers.length : 0;
+                                  final count = (state is CustomerLoaded)
+                                      ? state.customers.length
+                                      : 0;
                                   return Text(
                                     '$count',
-                                    style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: AppTheme.primaryColor),
+                                    style: const TextStyle(
+                                      fontSize: 24,
+                                      fontWeight: FontWeight.w800,
+                                      color: AppTheme.primaryColor,
+                                    ),
                                   );
                                 },
                               ),
                               icon: Icons.business,
                               color: Colors.blue.shade100,
-                              onTap: () => Navigator.of(context).push(
-                                MaterialPageRoute(builder: (_) => const CustomerListScreen()),
-                              ).then((_) => _refreshData()),
+                              onTap: () => Navigator.of(context)
+                                  .push(
+                                    MaterialPageRoute(
+                                      builder: (_) =>
+                                          const CustomerListScreen(),
+                                    ),
+                                  )
+                                  .then((_) => _refreshData()),
                             ),
                           ),
                           const SizedBox(width: 12),
@@ -150,18 +166,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               title: 'Sites',
                               bloc: BlocBuilder<SiteBloc, SiteState>(
                                 builder: (context, state) {
-                                  final count = (state is SiteLoaded) ? state.sites.length : 0;
+                                  final count = (state is SiteLoaded)
+                                      ? state.sites.length
+                                      : 0;
                                   return Text(
                                     '$count',
-                                    style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: AppTheme.secondaryColor),
+                                    style: const TextStyle(
+                                      fontSize: 24,
+                                      fontWeight: FontWeight.w800,
+                                      color: AppTheme.secondaryColor,
+                                    ),
                                   );
                                 },
                               ),
                               icon: Icons.location_city,
                               color: Colors.teal.shade100,
-                              onTap: () => Navigator.of(context).push(
-                                MaterialPageRoute(builder: (_) => const SiteListScreen()),
-                              ).then((_) => _refreshData()),
+                              onTap: () => Navigator.of(context)
+                                  .push(
+                                    MaterialPageRoute(
+                                      builder: (_) => const SiteListScreen(),
+                                    ),
+                                  )
+                                  .then((_) => _refreshData()),
                             ),
                           ),
                         ],
@@ -174,30 +200,53 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               title: 'Field Notes',
                               bloc: BlocBuilder<FieldNoteBloc, FieldNoteState>(
                                 builder: (context, state) {
-                                  final count = (state is FieldNoteLoaded) ? state.notes.length : 0;
+                                  final count = (state is FieldNoteLoaded)
+                                      ? state.notes.length
+                                      : 0;
                                   return Text(
                                     '$count',
-                                    style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: Colors.indigo),
+                                    style: const TextStyle(
+                                      fontSize: 24,
+                                      fontWeight: FontWeight.w800,
+                                      color: Colors.indigo,
+                                    ),
                                   );
                                 },
                               ),
                               icon: Icons.assignment,
                               color: Colors.indigo.shade100,
-                              onTap: () => Navigator.of(context).push(
-                                MaterialPageRoute(builder: (_) => const FieldNoteListScreen()),
-                              ).then((_) => _refreshData()),
+                              onTap: () => Navigator.of(context)
+                                  .push(
+                                    MaterialPageRoute(
+                                      builder: (_) =>
+                                          const FieldNoteListScreen(),
+                                    ),
+                                  )
+                                  .then((_) => _refreshData()),
                             ),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
                             child: _buildMetricCard(
                               title: 'New Note',
-                              bloc: const Text('Create', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.amber)),
+                              bloc: const Text(
+                                'Create',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.amber,
+                                ),
+                              ),
                               icon: Icons.add_circle,
                               color: Colors.amber.shade100,
-                              onTap: () => Navigator.of(context).push(
-                                MaterialPageRoute(builder: (_) => const FieldNoteEditorScreen()),
-                              ).then((_) => _refreshData()),
+                              onTap: () => Navigator.of(context)
+                                  .push(
+                                    MaterialPageRoute(
+                                      builder: (_) =>
+                                          const FieldNoteEditorScreen(),
+                                    ),
+                                  )
+                                  .then((_) => _refreshData()),
                             ),
                           ),
                         ],
@@ -217,9 +266,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             ),
                           ),
                           TextButton(
-                            onPressed: () => Navigator.of(context).push(
-                              MaterialPageRoute(builder: (_) => const FieldNoteListScreen()),
-                            ).then((_) => _refreshData()),
+                            onPressed: () => Navigator.of(context)
+                                .push(
+                                  MaterialPageRoute(
+                                    builder: (_) => const FieldNoteListScreen(),
+                                  ),
+                                )
+                                .then((_) => _refreshData()),
                             child: const Text('View All'),
                           ),
                         ],
@@ -230,7 +283,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       BlocBuilder<FieldNoteBloc, FieldNoteState>(
                         builder: (context, state) {
                           if (state is FieldNoteLoading) {
-                            return const Center(child: Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator()));
+                            return const Center(
+                              child: Padding(
+                                padding: EdgeInsets.all(24),
+                                child: CircularProgressIndicator(),
+                              ),
+                            );
                           }
                           if (state is FieldNoteLoaded) {
                             if (state.notes.isEmpty) {
@@ -239,12 +297,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 decoration: BoxDecoration(
                                   color: Colors.white,
                                   borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                                  border: Border.all(
+                                    color: const Color(0xFFE2E8F0),
+                                  ),
                                 ),
                                 child: const Center(
                                   child: Text(
                                     'No field notes recorded yet. Tap "+ New Note" to begin!',
-                                    style: TextStyle(color: AppTheme.textSecondary),
+                                    style: TextStyle(
+                                      color: AppTheme.textSecondary,
+                                    ),
                                     textAlign: TextAlign.center,
                                   ),
                                 ),
@@ -256,22 +318,35 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 return Card(
                                   margin: const EdgeInsets.only(bottom: 10),
                                   child: ListTile(
-                                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 6,
+                                    ),
                                     title: Text(
                                       note.title,
-                                      style: const TextStyle(fontWeight: FontWeight.w700),
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                      ),
                                     ),
                                     subtitle: Text(
                                       '${note.siteName ?? "Site"} • ${note.customerName ?? "Customer"}',
-                                      style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        color: AppTheme.textSecondary,
+                                      ),
                                     ),
                                     trailing: StatusBadge(status: note.status),
                                     onTap: () {
-                                      Navigator.of(context).push(
-                                        MaterialPageRoute(
-                                          builder: (_) => FieldNoteEditorScreen(existingNote: note),
-                                        ),
-                                      ).then((_) => _refreshData());
+                                      Navigator.of(context)
+                                          .push(
+                                            MaterialPageRoute(
+                                              builder: (_) =>
+                                                  FieldNoteEditorScreen(
+                                                    existingNote: note,
+                                                  ),
+                                            ),
+                                          )
+                                          .then((_) => _refreshData());
                                     },
                                   ),
                                 );
@@ -317,7 +392,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppTheme.textSecondary),
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.textSecondary,
+                  ),
                 ),
                 CircleAvatar(
                   radius: 16,
@@ -345,15 +424,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                const Icon(Icons.assignment_turned_in, size: 40, color: Colors.white),
+                const Icon(
+                  Icons.assignment_turned_in,
+                  size: 40,
+                  color: Colors.white,
+                ),
                 const SizedBox(height: 12),
                 const Text(
                   'Field Notes',
-                  style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800),
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
                 Text(
                   'Offline-First Inspection System',
-                  style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 12),
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.8),
+                    fontSize: 12,
+                  ),
                 ),
               ],
             ),
@@ -368,9 +458,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
             title: const Text('Customers'),
             onTap: () {
               Navigator.of(context).pop();
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const CustomerListScreen()),
-              ).then((_) => _refreshData());
+              Navigator.of(context)
+                  .push(
+                    MaterialPageRoute(
+                      builder: (_) => const CustomerListScreen(),
+                    ),
+                  )
+                  .then((_) => _refreshData());
             },
           ),
           ListTile(
@@ -378,9 +472,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
             title: const Text('Sites'),
             onTap: () {
               Navigator.of(context).pop();
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const SiteListScreen()),
-              ).then((_) => _refreshData());
+              Navigator.of(context)
+                  .push(
+                    MaterialPageRoute(builder: (_) => const SiteListScreen()),
+                  )
+                  .then((_) => _refreshData());
             },
           ),
           ListTile(
@@ -388,9 +484,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
             title: const Text('Field Notes'),
             onTap: () {
               Navigator.of(context).pop();
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const FieldNoteListScreen()),
-              ).then((_) => _refreshData());
+              Navigator.of(context)
+                  .push(
+                    MaterialPageRoute(
+                      builder: (_) => const FieldNoteListScreen(),
+                    ),
+                  )
+                  .then((_) => _refreshData());
             },
           ),
           const Divider(),
@@ -399,14 +499,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
             title: const Text('Settings'),
             onTap: () {
               Navigator.of(context).pop();
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const SettingsScreen()),
-              ).then((_) => _refreshData());
+              Navigator.of(context)
+                  .push(
+                    MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                  )
+                  .then((_) => _refreshData());
             },
           ),
           ListTile(
             leading: const Icon(Icons.logout, color: AppTheme.errorColor),
-            title: const Text('Sign Out', style: TextStyle(color: AppTheme.errorColor)),
+            title: const Text(
+              'Sign Out',
+              style: TextStyle(color: AppTheme.errorColor),
+            ),
             onTap: () {
               Navigator.of(context).pop();
               context.read<AuthBloc>().add(LogoutRequested());

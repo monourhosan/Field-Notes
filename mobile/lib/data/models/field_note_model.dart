@@ -3,6 +3,7 @@ import '../../domain/entities/sync_status.dart';
 
 class FieldNoteModel extends FieldNote {
   const FieldNoteModel({
+    super.serverVersion,
     required super.id,
     required super.siteId,
     super.siteName,
@@ -22,6 +23,7 @@ class FieldNoteModel extends FieldNote {
 
   factory FieldNoteModel.fromEntity(FieldNote entity) {
     return FieldNoteModel(
+      serverVersion: entity.serverVersion,
       id: entity.id,
       siteId: entity.siteId,
       siteName: entity.siteName,
@@ -47,6 +49,7 @@ class FieldNoteModel extends FieldNote {
     String? customerName,
   }) {
     return FieldNoteModel(
+      serverVersion: map['server_version'] as int?,
       id: map['id'] as String,
       siteId: map['site_id'] as String,
       siteName: siteName ?? map['site_name'] as String?,
@@ -67,16 +70,17 @@ class FieldNoteModel extends FieldNote {
 
   Map<String, dynamic> toDbMap() {
     return {
+      'server_version': serverVersion,
       'id': id,
       'site_id': siteId,
       'title': title,
       'description': description,
       'location': location,
-      'date_time': dateTime.toIso8601String(),
+      'date_time': dateTime.toUtc().toIso8601String(),
       'status': status,
       'photo': photo,
-      'created_at': createdAt.toIso8601String(),
-      'updated_at': updatedAt.toIso8601String(),
+      'created_at': createdAt.toUtc().toIso8601String(),
+      'updated_at': updatedAt.toUtc().toIso8601String(),
       'is_deleted': isDeleted ? 1 : 0,
       'sync_status': syncStatus.toDbString(),
     };
@@ -84,6 +88,7 @@ class FieldNoteModel extends FieldNote {
 
   factory FieldNoteModel.fromJson(Map<String, dynamic> json) {
     return FieldNoteModel(
+      serverVersion: (json['version'] as num?)?.toInt(),
       id: json['id'] as String,
       siteId: json['siteId'] as String,
       siteName: json['siteName'] as String?,
@@ -92,11 +97,17 @@ class FieldNoteModel extends FieldNote {
       title: json['title'] as String,
       description: json['description'] as String?,
       location: json['location'] as String?,
-      dateTime: json['dateTime'] != null ? DateTime.parse(json['dateTime'] as String) : DateTime.now(),
+      dateTime: json['dateTime'] != null
+          ? DateTime.parse(json['dateTime'] as String)
+          : DateTime.now(),
       status: json['status'] as String? ?? 'DRAFT',
       photo: json['photo'] as String?,
-      createdAt: json['createdAt'] != null ? DateTime.parse(json['createdAt'] as String) : DateTime.now(),
-      updatedAt: json['updatedAt'] != null ? DateTime.parse(json['updatedAt'] as String) : DateTime.now(),
+      createdAt: json['createdAt'] != null
+          ? DateTime.parse(json['createdAt'] as String)
+          : DateTime.now(),
+      updatedAt: json['updatedAt'] != null
+          ? DateTime.parse(json['updatedAt'] as String)
+          : DateTime.now(),
       isDeleted: json['deleted'] == true,
       syncStatus: SyncStatus.synced,
     );
@@ -114,6 +125,7 @@ class FieldNoteModel extends FieldNote {
       'photo': photo,
       'deleted': isDeleted,
       'updatedAt': updatedAt.millisecondsSinceEpoch,
+      'baseVersion': serverVersion,
     };
   }
 }

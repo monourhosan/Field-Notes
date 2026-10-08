@@ -22,7 +22,10 @@ class MockCustomerRepository implements CustomerRepository {
   }
 
   @override
-  Future<Customer> createCustomer({required String name, String? contactInformation}) async {
+  Future<Customer> createCustomer({
+    required String name,
+    String? contactInformation,
+  }) async {
     final newCust = Customer(
       id: 'cust-1',
       userId: 1,
@@ -37,9 +40,16 @@ class MockCustomerRepository implements CustomerRepository {
   }
 
   @override
-  Future<Customer> updateCustomer({required String id, required String name, String? contactInformation}) async {
+  Future<Customer> updateCustomer({
+    required String id,
+    required String name,
+    String? contactInformation,
+  }) async {
     final index = customers.indexWhere((c) => c.id == id);
-    final updated = customers[index].copyWith(name: name, contactInformation: contactInformation);
+    final updated = customers[index].copyWith(
+      name: name,
+      contactInformation: contactInformation,
+    );
     customers[index] = updated;
     return updated;
   }
@@ -68,35 +78,51 @@ void main() {
       expect(bloc.state, equals(CustomerInitial()));
     });
 
-    test('emits [CustomerLoading, CustomerLoaded] when LoadCustomers is added', () async {
-      repository.customers = [
-        Customer(
-          id: '1',
-          userId: 1,
-          name: 'Apex Industries',
-          createdAt: DateTime.now(),
-          updatedAt: DateTime.now(),
-        ),
-      ];
+    test(
+      'emits [CustomerLoading, CustomerLoaded] when LoadCustomers is added',
+      () async {
+        repository.customers = [
+          Customer(
+            id: '1',
+            userId: 1,
+            name: 'Apex Industries',
+            createdAt: DateTime.now(),
+            updatedAt: DateTime.now(),
+          ),
+        ];
 
-      expectLater(
-        bloc.stream,
-        emitsInOrder([
-          isA<CustomerLoading>(),
-          isA<CustomerLoaded>().having((s) => s.customers.length, 'length', 1),
-        ]),
-      );
+        expectLater(
+          bloc.stream,
+          emitsInOrder([
+            isA<CustomerLoading>(),
+            isA<CustomerLoaded>().having(
+              (s) => s.customers.length,
+              'length',
+              1,
+            ),
+          ]),
+        );
 
-      bloc.add(LoadCustomers());
-    });
+        bloc.add(LoadCustomers());
+      },
+    );
 
     test('creates customer and refreshes list', () async {
-      bloc.add(const CreateCustomerEvent(name: 'New Client Ltd', contactInformation: 'contact@client.com'));
+      bloc.add(
+        const CreateCustomerEvent(
+          name: 'New Client Ltd',
+          contactInformation: 'contact@client.com',
+        ),
+      );
 
       await expectLater(
         bloc.stream,
         emitsThrough(
-          isA<CustomerLoaded>().having((s) => s.customers.any((c) => c.name == 'New Client Ltd'), 'has client', true),
+          isA<CustomerLoaded>().having(
+            (s) => s.customers.any((c) => c.name == 'New Client Ltd'),
+            'has client',
+            true,
+          ),
         ),
       );
     });

@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+
 import '../../../domain/entities/customer.dart';
 
 abstract class CustomerState extends Equatable {

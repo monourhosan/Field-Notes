@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+
 import '../../core/theme/app_theme.dart';
 import '../../domain/entities/site.dart';
 import '../bloc/site/site_bloc.dart';
@@ -47,7 +48,9 @@ class _SiteDetailsScreenState extends State<SiteDetailsScreen> {
                 TextFormField(
                   controller: nameController,
                   decoration: const InputDecoration(labelText: 'Site Name *'),
-                  validator: (val) => (val == null || val.trim().isEmpty) ? 'Please enter site name' : null,
+                  validator: (val) => (val == null || val.trim().isEmpty)
+                      ? 'Please enter site name'
+                      : null,
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
@@ -69,13 +72,13 @@ class _SiteDetailsScreenState extends State<SiteDetailsScreen> {
                   final newName = nameController.text.trim();
                   final newAddress = addressController.text.trim();
                   context.read<SiteBloc>().add(
-                        UpdateSiteEvent(
-                          id: _site.id,
-                          customerId: _site.customerId,
-                          siteName: newName,
-                          address: newAddress,
-                        ),
-                      );
+                    UpdateSiteEvent(
+                      id: _site.id,
+                      customerId: _site.customerId,
+                      siteName: newName,
+                      address: newAddress,
+                    ),
+                  );
                   setState(() {
                     _site = _site.copyWith(
                       siteName: newName,
@@ -98,16 +101,22 @@ class _SiteDetailsScreenState extends State<SiteDetailsScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Delete Site'),
-        content: Text('Are you sure you want to delete "${_site.siteName}" and all its field notes?'),
+        content: Text(
+          'Are you sure you want to delete "${_site.siteName}" and all its field notes?',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.errorColor),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.errorColor,
+            ),
             onPressed: () {
-              context.read<SiteBloc>().add(DeleteSiteEvent(_site.id, customerId: _site.customerId));
+              context.read<SiteBloc>().add(
+                DeleteSiteEvent(_site.id, customerId: _site.customerId),
+              );
               Navigator.of(ctx).pop();
               Navigator.of(context).pop();
             },
@@ -124,8 +133,14 @@ class _SiteDetailsScreenState extends State<SiteDetailsScreen> {
       appBar: AppBar(
         title: Text(_site.siteName),
         actions: [
-          IconButton(icon: const Icon(Icons.edit_outlined), onPressed: _editSite),
-          IconButton(icon: const Icon(Icons.delete_outline, color: AppTheme.errorColor), onPressed: _confirmDelete),
+          IconButton(
+            icon: const Icon(Icons.edit_outlined),
+            onPressed: _editSite,
+          ),
+          IconButton(
+            icon: const Icon(Icons.delete_outline, color: AppTheme.errorColor),
+            onPressed: _confirmDelete,
+          ),
         ],
       ),
       body: SingleChildScrollView(
@@ -142,22 +157,39 @@ class _SiteDetailsScreenState extends State<SiteDetailsScreen> {
                   children: [
                     Text(
                       _site.siteName,
-                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: AppTheme.textPrimary),
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                        color: AppTheme.textPrimary,
+                      ),
                     ),
                     const SizedBox(height: 6),
                     Text(
                       'Customer: ${_site.customerName ?? "Customer"}',
-                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppTheme.primaryColor),
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.primaryColor,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     Row(
                       children: [
-                        const Icon(Icons.place_outlined, size: 16, color: AppTheme.textSecondary),
+                        const Icon(
+                          Icons.place_outlined,
+                          size: 16,
+                          color: AppTheme.textSecondary,
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            _site.address?.isNotEmpty == true ? _site.address! : 'No address specified',
-                            style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+                            _site.address?.isNotEmpty == true
+                                ? _site.address!
+                                : 'No address specified',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: AppTheme.textSecondary,
+                            ),
                           ),
                         ),
                       ],
@@ -174,17 +206,24 @@ class _SiteDetailsScreenState extends State<SiteDetailsScreen> {
               children: [
                 const Text(
                   'Notes for this Site',
-                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: AppTheme.textPrimary),
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.textPrimary,
+                  ),
                 ),
                 TextButton.icon(
                   onPressed: () async {
                     await Navigator.of(context).push(
                       MaterialPageRoute(
-                        builder: (_) => FieldNoteEditorScreen(preselectedSiteId: _site.id),
+                        builder: (_) =>
+                            FieldNoteEditorScreen(preselectedSiteId: _site.id),
                       ),
                     );
                     if (context.mounted) {
-                      context.read<FieldNoteBloc>().add(LoadFieldNotes(siteId: _site.id));
+                      context.read<FieldNoteBloc>().add(
+                        LoadFieldNotes(siteId: _site.id),
+                      );
                     }
                   },
                   icon: const Icon(Icons.add, size: 18),
@@ -198,10 +237,18 @@ class _SiteDetailsScreenState extends State<SiteDetailsScreen> {
             BlocBuilder<FieldNoteBloc, FieldNoteState>(
               builder: (context, state) {
                 if (state is FieldNoteLoading) {
-                  return const Center(child: Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator()));
+                  return const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(24),
+                      child: CircularProgressIndicator(),
+                    ),
+                  );
                 }
                 if (state is FieldNoteLoaded) {
-                  if (state.notes.isEmpty) {
+                  final visible = state.notes
+                      .where((note) => note.siteId == _site.id)
+                      .toList();
+                  if (visible.isEmpty) {
                     return Container(
                       padding: const EdgeInsets.all(24),
                       decoration: BoxDecoration(
@@ -218,26 +265,37 @@ class _SiteDetailsScreenState extends State<SiteDetailsScreen> {
                     );
                   }
                   return Column(
-                    children: state.notes.map((note) {
+                    children: visible.map((note) {
                       return Card(
                         margin: const EdgeInsets.only(bottom: 8),
                         child: ListTile(
-                          title: Text(note.title, style: const TextStyle(fontWeight: FontWeight.w700)),
+                          title: Text(
+                            note.title,
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
                           subtitle: Text(
-                            note.description?.isNotEmpty == true ? note.description! : 'No description',
+                            note.description?.isNotEmpty == true
+                                ? note.description!
+                                : 'No description',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: AppTheme.textSecondary,
+                            ),
                           ),
                           trailing: StatusBadge(status: note.status),
                           onTap: () async {
                             await Navigator.of(context).push(
                               MaterialPageRoute(
-                                builder: (_) => FieldNoteEditorScreen(existingNote: note),
+                                builder: (_) =>
+                                    FieldNoteEditorScreen(existingNote: note),
                               ),
                             );
                             if (context.mounted) {
-                              context.read<FieldNoteBloc>().add(LoadFieldNotes(siteId: _site.id));
+                              context.read<FieldNoteBloc>().add(
+                                LoadFieldNotes(siteId: _site.id),
+                              );
                             }
                           },
                         ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
+
 import '../../core/theme/app_theme.dart';
 import '../../domain/entities/customer.dart';
 import '../bloc/customer/customer_bloc.dart';
@@ -31,7 +32,9 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
 
   void _editCustomer() {
     final nameController = TextEditingController(text: _customer.name);
-    final contactController = TextEditingController(text: _customer.contactInformation ?? '');
+    final contactController = TextEditingController(
+      text: _customer.contactInformation ?? '',
+    );
     final formKey = GlobalKey<FormState>();
 
     showDialog(
@@ -46,13 +49,19 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
               children: [
                 TextFormField(
                   controller: nameController,
-                  decoration: const InputDecoration(labelText: 'Customer Name *'),
-                  validator: (val) => (val == null || val.trim().isEmpty) ? 'Please enter name' : null,
+                  decoration: const InputDecoration(
+                    labelText: 'Customer Name *',
+                  ),
+                  validator: (val) => (val == null || val.trim().isEmpty)
+                      ? 'Please enter name'
+                      : null,
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: contactController,
-                  decoration: const InputDecoration(labelText: 'Contact Information'),
+                  decoration: const InputDecoration(
+                    labelText: 'Contact Information',
+                  ),
                   maxLines: 2,
                 ),
               ],
@@ -69,12 +78,12 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
                   final newName = nameController.text.trim();
                   final newContact = contactController.text.trim();
                   context.read<CustomerBloc>().add(
-                        UpdateCustomerEvent(
-                          id: _customer.id,
-                          name: newName,
-                          contactInformation: newContact,
-                        ),
-                      );
+                    UpdateCustomerEvent(
+                      id: _customer.id,
+                      name: newName,
+                      contactInformation: newContact,
+                    ),
+                  );
                   setState(() {
                     _customer = _customer.copyWith(
                       name: newName,
@@ -97,16 +106,22 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Delete Customer'),
-        content: Text('Are you sure you want to delete "${_customer.name}" and all its sites?'),
+        content: Text(
+          'Are you sure you want to delete "${_customer.name}" and all its sites?',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.errorColor),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.errorColor,
+            ),
             onPressed: () {
-              context.read<CustomerBloc>().add(DeleteCustomerEvent(_customer.id));
+              context.read<CustomerBloc>().add(
+                DeleteCustomerEvent(_customer.id),
+              );
               Navigator.of(ctx).pop();
               Navigator.of(context).pop();
             },
@@ -135,7 +150,9 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
                 TextFormField(
                   controller: nameController,
                   decoration: const InputDecoration(labelText: 'Site Name *'),
-                  validator: (val) => (val == null || val.trim().isEmpty) ? 'Please enter site name' : null,
+                  validator: (val) => (val == null || val.trim().isEmpty)
+                      ? 'Please enter site name'
+                      : null,
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
@@ -155,12 +172,12 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
               onPressed: () {
                 if (formKey.currentState?.validate() ?? false) {
                   context.read<SiteBloc>().add(
-                        CreateSiteEvent(
-                          customerId: _customer.id,
-                          siteName: nameController.text.trim(),
-                          address: addressController.text.trim(),
-                        ),
-                      );
+                    CreateSiteEvent(
+                      customerId: _customer.id,
+                      siteName: nameController.text.trim(),
+                      address: addressController.text.trim(),
+                    ),
+                  );
                   Navigator.of(ctx).pop();
                 }
               },
@@ -179,8 +196,14 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
       appBar: AppBar(
         title: Text(_customer.name),
         actions: [
-          IconButton(icon: const Icon(Icons.edit_outlined), onPressed: _editCustomer),
-          IconButton(icon: const Icon(Icons.delete_outline, color: AppTheme.errorColor), onPressed: _confirmDelete),
+          IconButton(
+            icon: const Icon(Icons.edit_outlined),
+            onPressed: _editCustomer,
+          ),
+          IconButton(
+            icon: const Icon(Icons.delete_outline, color: AppTheme.errorColor),
+            onPressed: _confirmDelete,
+          ),
         ],
       ),
       body: SingleChildScrollView(
@@ -197,19 +220,30 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
                   children: [
                     Text(
                       _customer.name,
-                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: AppTheme.textPrimary),
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                        color: AppTheme.textPrimary,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     Row(
                       children: [
-                        const Icon(Icons.contact_mail_outlined, size: 16, color: AppTheme.textSecondary),
+                        const Icon(
+                          Icons.contact_mail_outlined,
+                          size: 16,
+                          color: AppTheme.textSecondary,
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             _customer.contactInformation?.isNotEmpty == true
                                 ? _customer.contactInformation!
                                 : 'No contact information provided',
-                            style: const TextStyle(fontSize: 14, color: AppTheme.textSecondary),
+                            style: const TextStyle(
+                              fontSize: 14,
+                              color: AppTheme.textSecondary,
+                            ),
                           ),
                         ),
                       ],
@@ -217,11 +251,18 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
                     const SizedBox(height: 8),
                     Row(
                       children: [
-                        const Icon(Icons.calendar_today_outlined, size: 16, color: AppTheme.textSecondary),
+                        const Icon(
+                          Icons.calendar_today_outlined,
+                          size: 16,
+                          color: AppTheme.textSecondary,
+                        ),
                         const SizedBox(width: 8),
                         Text(
-                          'Created: ${dateFormat.format(_customer.createdAt)}',
-                          style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+                          'Created: ${dateFormat.format(_customer.createdAt.toLocal())}',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: AppTheme.textSecondary,
+                          ),
                         ),
                       ],
                     ),
@@ -237,7 +278,11 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
               children: [
                 const Text(
                   'Sites under Customer',
-                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: AppTheme.textPrimary),
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.textPrimary,
+                  ),
                 ),
                 TextButton.icon(
                   onPressed: _addSiteDialog,
@@ -252,10 +297,18 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
             BlocBuilder<SiteBloc, SiteState>(
               builder: (context, state) {
                 if (state is SiteLoading) {
-                  return const Center(child: Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator()));
+                  return const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(24),
+                      child: CircularProgressIndicator(),
+                    ),
+                  );
                 }
                 if (state is SiteLoaded) {
-                  if (state.sites.isEmpty) {
+                  final visible = state.sites
+                      .where((site) => site.customerId == _customer.id)
+                      .toList();
+                  if (visible.isEmpty) {
                     return Container(
                       padding: const EdgeInsets.all(24),
                       decoration: BoxDecoration(
@@ -272,26 +325,45 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
                     );
                   }
                   return Column(
-                    children: state.sites.map((site) {
+                    children: visible.map((site) {
                       return Card(
                         margin: const EdgeInsets.only(bottom: 8),
                         child: ListTile(
                           leading: const CircleAvatar(
                             backgroundColor: Color(0xFFCCFBF1),
-                            child: Icon(Icons.location_city, color: AppTheme.secondaryColor, size: 20),
+                            child: Icon(
+                              Icons.location_city,
+                              color: AppTheme.secondaryColor,
+                              size: 20,
+                            ),
                           ),
-                          title: Text(site.siteName, style: const TextStyle(fontWeight: FontWeight.w700)),
+                          title: Text(
+                            site.siteName,
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
                           subtitle: Text(
-                            site.address?.isNotEmpty == true ? site.address! : 'No address provided',
-                            style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+                            site.address?.isNotEmpty == true
+                                ? site.address!
+                                : 'No address provided',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: AppTheme.textSecondary,
+                            ),
                           ),
-                          trailing: const Icon(Icons.chevron_right, color: AppTheme.textSecondary),
+                          trailing: const Icon(
+                            Icons.chevron_right,
+                            color: AppTheme.textSecondary,
+                          ),
                           onTap: () async {
                             await Navigator.of(context).push(
-                              MaterialPageRoute(builder: (_) => SiteDetailsScreen(site: site)),
+                              MaterialPageRoute(
+                                builder: (_) => SiteDetailsScreen(site: site),
+                              ),
                             );
                             if (context.mounted) {
-                              context.read<SiteBloc>().add(LoadSites(customerId: _customer.id));
+                              context.read<SiteBloc>().add(
+                                LoadSites(customerId: _customer.id),
+                              );
                             }
                           },
                         ),

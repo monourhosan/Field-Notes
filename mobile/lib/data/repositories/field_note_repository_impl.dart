@@ -1,22 +1,33 @@
+import '../../core/validation.dart';
+
 import 'package:sqflite/sqflite.dart';
 import 'package:uuid/uuid.dart';
-import '../../core/constants/api_constants.dart';
+
 import '../../domain/entities/field_note.dart';
 import '../../domain/entities/sync_status.dart';
 import '../../domain/repositories/field_note_repository.dart';
 import '../local/database_helper.dart';
 import '../models/field_note_model.dart';
 import '../remote/api_client.dart';
+import '../local/settings_local_data_source.dart';
 
 class FieldNoteRepositoryImpl implements FieldNoteRepository {
   final DatabaseHelper _dbHelper;
-  final ApiClient _apiClient;
+  final SettingsLocalDataSource _settingsDataSource;
   final Uuid _uuid = const Uuid();
 
-  FieldNoteRepositoryImpl(this._dbHelper, this._apiClient);
+  FieldNoteRepositoryImpl(
+    this._dbHelper,
+    ApiClient apiClient,
+    this._settingsDataSource,
+  );
 
   @override
-  Future<List<FieldNote>> getNotes({String? query, String? siteId, String? status}) async {
+  Future<List<FieldNote>> getNotes({
+    String? query,
+    String? siteId,
+    String? status,
+  }) async {
     final db = await _dbHelper.database;
 
     String sql = '''
@@ -24,9 +35,9 @@ class FieldNoteRepositoryImpl implements FieldNoteRepository {
       FROM field_notes n
       JOIN sites s ON n.site_id = s.id
       JOIN customers c ON s.customer_id = c.id
-      WHERE n.is_deleted = 0
+      WHERE n.is_deleted = 0 AND s.is_deleted = 0 AND c.is_deleted = 0 AND c.user_id = ?
     ''';
-    List<dynamic> args = [];
+    List<dynamic> args = [_settingsDataSource.requireUserId()];
 
     if (siteId != null && siteId.isNotEmpty) {
       sql += ' AND n.site_id = ?';
@@ -60,14 +71,17 @@ class FieldNoteRepositoryImpl implements FieldNoteRepository {
   @override
   Future<FieldNote?> getNoteById(String id) async {
     final db = await _dbHelper.database;
-    final maps = await db.rawQuery('''
+    final maps = await db.rawQuery(
+      '''
       SELECT n.*, s.site_name, s.customer_id, c.name as customer_name
       FROM field_notes n
       JOIN sites s ON n.site_id = s.id
       JOIN customers c ON s.customer_id = c.id
-      WHERE n.id = ? AND n.is_deleted = 0
+      WHERE n.id = ? AND n.is_deleted = 0 AND s.is_deleted = 0 AND c.is_deleted = 0 AND c.user_id = ?
       LIMIT 1
-    ''', [id]);
+    ''',
+      [id, _settingsDataSource.requireUserId()],
+    );
 
     if (maps.isNotEmpty) {
       return FieldNoteModel.fromDbMap(maps.first);
@@ -85,18 +99,28 @@ class FieldNoteRepositoryImpl implements FieldNoteRepository {
     required String status,
     String? photo,
   }) async {
+    RecordValidation.note(title, description, location, status, photo);
+    RecordValidation.inspectionDate(dateTime);
     final db = await _dbHelper.database;
+    final parent = await db.rawQuery(
+      'SELECT s.id FROM sites s JOIN customers c ON c.id = s.customer_id WHERE s.id = ? AND c.user_id = ? AND s.is_deleted = 0 AND c.is_deleted = 0',
+      [siteId, _settingsDataSource.requireUserId()],
+    );
+    if (parent.isEmpty) throw Exception('Parent record unavailable');
     final now = DateTime.now();
     final id = _uuid.v4();
 
     // Query site and customer info
-    final siteMaps = await db.rawQuery('''
+    final siteMaps = await db.rawQuery(
+      '''
       SELECT s.site_name, s.customer_id, c.name as customer_name
       FROM sites s
       JOIN customers c ON s.customer_id = c.id
       WHERE s.id = ?
       LIMIT 1
-    ''', [siteId]);
+    ''',
+      [siteId],
+    );
 
     String? siteName;
     String? customerId;
@@ -125,35 +149,13 @@ class FieldNoteRepositoryImpl implements FieldNoteRepository {
       syncStatus: SyncStatus.pendingCreate,
     );
 
-    await db.insert('field_notes', model.toDbMap(), conflictAlgorithm: ConflictAlgorithm.replace);
+    await db.insert(
+      'field_notes',
+      model.toDbMap(),
+      conflictAlgorithm: ConflictAlgorithm.abort,
+    );
 
-    // Try online sync
-    try {
-      final response = await _apiClient.post(
-        ApiConstants.notes,
-        body: {
-          'id': id,
-          'siteId': siteId,
-          'title': title,
-          'description': description,
-          'location': location,
-          'dateTime': (dateTime ?? now).toIso8601String(),
-          'status': status,
-          'photo': photo,
-        },
-      );
-      if (response.statusCode == 201 || response.statusCode == 200) {
-        model = FieldNoteModel.fromEntity(model.copyWith(syncStatus: SyncStatus.synced));
-        await db.update(
-          'field_notes',
-          {'sync_status': SyncStatus.synced.toDbString()},
-          where: 'id = ?',
-          whereArgs: [id],
-        );
-      }
-    } catch (_) {
-      // Offline: keep as PENDING_CREATE
-    }
+    _dbHelper.notifyChange();
 
     return model;
   }
@@ -169,7 +171,14 @@ class FieldNoteRepositoryImpl implements FieldNoteRepository {
     required String status,
     String? photo,
   }) async {
+    RecordValidation.note(title, description, location, status, photo);
+    RecordValidation.inspectionDate(dateTime);
     final db = await _dbHelper.database;
+    final parent = await db.rawQuery(
+      'SELECT s.id FROM sites s JOIN customers c ON c.id = s.customer_id WHERE s.id = ? AND c.user_id = ? AND s.is_deleted = 0 AND c.is_deleted = 0',
+      [siteId, _settingsDataSource.requireUserId()],
+    );
+    if (parent.isEmpty) throw Exception('Parent record unavailable');
     final now = DateTime.now();
 
     final existing = await getNoteById(id);
@@ -184,43 +193,32 @@ class FieldNoteRepositoryImpl implements FieldNoteRepository {
         siteId: siteId,
         title: title,
         description: description,
+        clearDescription: description == null,
         location: location,
+        clearLocation: location == null,
         dateTime: dateTime ?? existing.dateTime,
         status: status,
-        photo: photo ?? existing.photo,
+        photo: photo,
+        clearPhoto: photo == null,
         updatedAt: now,
         syncStatus: newStatus,
       ),
     );
 
-    await db.update('field_notes', updated.toDbMap(), where: 'id = ?', whereArgs: [id]);
-
-    // Try online sync
-    try {
-      final response = await _apiClient.put(
-        '${ApiConstants.notes}/$id',
-        body: {
-          'siteId': siteId,
-          'title': title,
-          'description': description,
-          'location': location,
-          'dateTime': updated.dateTime.toIso8601String(),
-          'status': status,
-          'photo': updated.photo,
-        },
+    await db.transaction((txn) async {
+      await txn.update(
+        'field_notes',
+        updated.toDbMap(),
+        where: 'id = ?',
+        whereArgs: [id],
       );
-      if (response.statusCode == 200) {
-        updated = FieldNoteModel.fromEntity(updated.copyWith(syncStatus: SyncStatus.synced));
-        await db.update(
-          'field_notes',
-          {'sync_status': SyncStatus.synced.toDbString()},
-          where: 'id = ?',
-          whereArgs: [id],
-        );
-      }
-    } catch (_) {
-      // Offline: keep pending
-    }
+      await txn.rawUpdate(
+        'UPDATE field_notes SET local_revision = local_revision + 1 WHERE id = ?',
+        [id],
+      );
+    });
+
+    _dbHelper.notifyChange();
 
     return updated;
   }
@@ -233,29 +231,12 @@ class FieldNoteRepositoryImpl implements FieldNoteRepository {
     final existing = await getNoteById(id);
     if (existing == null) return;
 
-    if (existing.syncStatus == SyncStatus.pendingCreate) {
-      await db.delete('field_notes', where: 'id = ?', whereArgs: [id]);
-      return;
-    }
-
-    await db.update(
-      'field_notes',
-      {
-        'is_deleted': 1,
-        'sync_status': SyncStatus.pendingDelete.toDbString(),
-        'updated_at': now.toIso8601String(),
-      },
-      where: 'id = ?',
-      whereArgs: [id],
-    );
-
-    try {
-      final response = await _apiClient.delete('${ApiConstants.notes}/$id');
-      if (response.statusCode == 204 || response.statusCode == 200) {
-        await db.delete('field_notes', where: 'id = ?', whereArgs: [id]);
-      }
-    } catch (_) {
-      // Offline
-    }
+    await db.transaction((txn) async {
+      await txn.rawUpdate(
+        "UPDATE field_notes SET is_deleted = 1, sync_status = 'PENDING_DELETE', updated_at = ?, local_revision = local_revision + 1 WHERE id = ?",
+        [now.toUtc().toIso8601String(), id],
+      );
+    });
+    _dbHelper.notifyChange();
   }
 }

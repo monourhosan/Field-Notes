@@ -6,18 +6,27 @@ abstract class SiteEvent extends Equatable {
   List<Object?> get props => [];
 }
 
+class RefreshSites extends SiteEvent {
+  const RefreshSites();
+}
+
 class LoadSites extends SiteEvent {
+  final bool reset;
   final String? customerId;
-  const LoadSites({this.customerId});
+  const LoadSites({this.reset = false, this.customerId});
   @override
-  List<Object?> get props => [customerId];
+  List<Object?> get props => [reset, customerId];
 }
 
 class CreateSiteEvent extends SiteEvent {
   final String customerId;
   final String siteName;
   final String? address;
-  const CreateSiteEvent({required this.customerId, required this.siteName, this.address});
+  const CreateSiteEvent({
+    required this.customerId,
+    required this.siteName,
+    this.address,
+  });
   @override
   List<Object?> get props => [customerId, siteName, address];
 }
@@ -27,7 +36,12 @@ class UpdateSiteEvent extends SiteEvent {
   final String customerId;
   final String siteName;
   final String? address;
-  const UpdateSiteEvent({required this.id, required this.customerId, required this.siteName, this.address});
+  const UpdateSiteEvent({
+    required this.id,
+    required this.customerId,
+    required this.siteName,
+    this.address,
+  });
   @override
   List<Object?> get props => [id, customerId, siteName, address];
 }

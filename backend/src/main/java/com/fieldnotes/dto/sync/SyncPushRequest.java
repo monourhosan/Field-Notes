@@ -1,20 +1,35 @@
 package com.fieldnotes.dto.sync;
 
-import com.fieldnotes.dto.customer.CustomerRequest;
-import com.fieldnotes.dto.site.SiteRequest;
-import com.fieldnotes.dto.note.FieldNoteRequest;
 
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.*;
 import java.util.ArrayList;
 import java.util.List;
 
+
 public class SyncPushRequest {
-    private List<CustomerSyncItem> customers = new ArrayList<>();
-    private List<SiteSyncItem> sites = new ArrayList<>();
-    private List<FieldNoteSyncItem> notes = new ArrayList<>();
+    @Valid
+    @NotNull
+    @Size(max = 1000)
+    private List<@NotNull CustomerSyncItem> customers = new ArrayList<>();
+    @Valid
+    @NotNull
+    @Size(max = 1000)
+    private List<@NotNull SiteSyncItem> sites = new ArrayList<>();
+    @Valid
+    @NotNull
+    @Size(max = 1000)
+    private List<@NotNull FieldNoteSyncItem> notes = new ArrayList<>();
 
     public static class CustomerSyncItem {
+        @NotBlank @Size(max = 36)
         private String id;
+        private Long baseVersion;
+        public Long getBaseVersion() { return baseVersion; }
+        public void setBaseVersion(Long value) { baseVersion = value; }
+        @NotBlank @Size(max = 255)
         private String name;
+        @Size(max = 16000)
         private String contactInformation;
         private boolean deleted;
         private Long updatedAt; // epoch millis
@@ -32,9 +47,16 @@ public class SyncPushRequest {
     }
 
     public static class SiteSyncItem {
+        @NotBlank @Size(max = 36)
         private String id;
+        private Long baseVersion;
+        public Long getBaseVersion() { return baseVersion; }
+        public void setBaseVersion(Long value) { baseVersion = value; }
+        @NotBlank @Size(max = 36)
         private String customerId;
+        @NotBlank @Size(max = 255)
         private String siteName;
+        @Size(max = 16000)
         private String address;
         private boolean deleted;
         private Long updatedAt;
@@ -54,13 +76,24 @@ public class SyncPushRequest {
     }
 
     public static class FieldNoteSyncItem {
+        @NotBlank @Size(max = 36)
         private String id;
+        private Long baseVersion;
+        public Long getBaseVersion() { return baseVersion; }
+        public void setBaseVersion(Long value) { baseVersion = value; }
+        @NotBlank @Size(max = 36)
         private String siteId;
+        @NotBlank @Size(max = 255)
         private String title;
+        @Size(max = 16000)
         private String description;
+        @Size(max = 255)
         private String location;
-        private Long dateTime; // epoch millis
+        @Min(-30610224000000L) @Max(253402300799999L)
+        private Long dateTime; // epoch millis, MySQL DATETIME range
+        @NotBlank @Pattern(regexp = "DRAFT|IN_PROGRESS|COMPLETED|PENDING")
         private String status;
+        @Size(max = 2000000)
         private String photo;
         private boolean deleted;
         private Long updatedAt;

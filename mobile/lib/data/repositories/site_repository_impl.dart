@@ -1,19 +1,26 @@
+import '../../core/validation.dart';
+
 import 'package:sqflite/sqflite.dart';
 import 'package:uuid/uuid.dart';
-import '../../core/constants/api_constants.dart';
+
 import '../../domain/entities/site.dart';
 import '../../domain/entities/sync_status.dart';
 import '../../domain/repositories/site_repository.dart';
 import '../local/database_helper.dart';
 import '../models/site_model.dart';
 import '../remote/api_client.dart';
+import '../local/settings_local_data_source.dart';
 
 class SiteRepositoryImpl implements SiteRepository {
   final DatabaseHelper _dbHelper;
-  final ApiClient _apiClient;
+  final SettingsLocalDataSource _settingsDataSource;
   final Uuid _uuid = const Uuid();
 
-  SiteRepositoryImpl(this._dbHelper, this._apiClient);
+  SiteRepositoryImpl(
+    this._dbHelper,
+    ApiClient apiClient,
+    this._settingsDataSource,
+  );
 
   @override
   Future<List<Site>> getSites({String? customerId}) async {
@@ -23,9 +30,9 @@ class SiteRepositoryImpl implements SiteRepository {
       SELECT s.*, c.name as customer_name 
       FROM sites s 
       JOIN customers c ON s.customer_id = c.id 
-      WHERE s.is_deleted = 0
+      WHERE s.is_deleted = 0 AND c.is_deleted = 0 AND c.user_id = ?
     ''';
-    List<dynamic> args = [];
+    List<dynamic> args = [_settingsDataSource.requireUserId()];
 
     if (customerId != null && customerId.isNotEmpty) {
       query += ' AND s.customer_id = ?';
@@ -41,13 +48,16 @@ class SiteRepositoryImpl implements SiteRepository {
   @override
   Future<Site?> getSiteById(String id) async {
     final db = await _dbHelper.database;
-    final maps = await db.rawQuery('''
+    final maps = await db.rawQuery(
+      '''
       SELECT s.*, c.name as customer_name 
       FROM sites s 
       JOIN customers c ON s.customer_id = c.id 
-      WHERE s.id = ? AND s.is_deleted = 0
+      WHERE s.id = ? AND s.is_deleted = 0 AND c.is_deleted = 0 AND c.user_id = ?
       LIMIT 1
-    ''', [id]);
+    ''',
+      [id, _settingsDataSource.requireUserId()],
+    );
 
     if (maps.isNotEmpty) {
       return SiteModel.fromDbMap(maps.first);
@@ -61,7 +71,14 @@ class SiteRepositoryImpl implements SiteRepository {
     required String siteName,
     String? address,
   }) async {
+    RecordValidation.text(siteName, 'Site name', 255, required: true);
+    RecordValidation.text(address, 'Address', 16000);
     final db = await _dbHelper.database;
+    final parent = await db.rawQuery(
+      'SELECT id FROM customers WHERE id = ? AND user_id = ? AND is_deleted = 0',
+      [customerId, _settingsDataSource.requireUserId()],
+    );
+    if (parent.isEmpty) throw Exception('Parent record unavailable');
     final now = DateTime.now();
     final id = _uuid.v4();
 
@@ -73,7 +90,9 @@ class SiteRepositoryImpl implements SiteRepository {
       whereArgs: [customerId],
       limit: 1,
     );
-    final customerName = customerMaps.isNotEmpty ? customerMaps.first['name'] as String? : null;
+    final customerName = customerMaps.isNotEmpty
+        ? customerMaps.first['name'] as String?
+        : null;
 
     SiteModel model = SiteModel(
       id: id,
@@ -87,31 +106,13 @@ class SiteRepositoryImpl implements SiteRepository {
       syncStatus: SyncStatus.pendingCreate,
     );
 
-    await db.insert('sites', model.toDbMap(), conflictAlgorithm: ConflictAlgorithm.replace);
+    await db.insert(
+      'sites',
+      model.toDbMap(),
+      conflictAlgorithm: ConflictAlgorithm.abort,
+    );
 
-    // Try online sync
-    try {
-      final response = await _apiClient.post(
-        ApiConstants.sites,
-        body: {
-          'id': id,
-          'customerId': customerId,
-          'siteName': siteName,
-          'address': address,
-        },
-      );
-      if (response.statusCode == 201 || response.statusCode == 200) {
-        model = SiteModel.fromEntity(model.copyWith(syncStatus: SyncStatus.synced));
-        await db.update(
-          'sites',
-          {'sync_status': SyncStatus.synced.toDbString()},
-          where: 'id = ?',
-          whereArgs: [id],
-        );
-      }
-    } catch (_) {
-      // Offline: keep as PENDING_CREATE
-    }
+    _dbHelper.notifyChange();
 
     return model;
   }
@@ -123,7 +124,14 @@ class SiteRepositoryImpl implements SiteRepository {
     required String siteName,
     String? address,
   }) async {
+    RecordValidation.text(siteName, 'Site name', 255, required: true);
+    RecordValidation.text(address, 'Address', 16000);
     final db = await _dbHelper.database;
+    final parent = await db.rawQuery(
+      'SELECT id FROM customers WHERE id = ? AND user_id = ? AND is_deleted = 0',
+      [customerId, _settingsDataSource.requireUserId()],
+    );
+    if (parent.isEmpty) throw Exception('Parent record unavailable');
     final now = DateTime.now();
 
     final existing = await getSiteById(id);
@@ -138,35 +146,26 @@ class SiteRepositoryImpl implements SiteRepository {
         customerId: customerId,
         siteName: siteName,
         address: address,
+        clearAddress: address == null,
         updatedAt: now,
         syncStatus: newStatus,
       ),
     );
 
-    await db.update('sites', updated.toDbMap(), where: 'id = ?', whereArgs: [id]);
-
-    // Try online sync
-    try {
-      final response = await _apiClient.put(
-        '${ApiConstants.sites}/$id',
-        body: {
-          'customerId': customerId,
-          'siteName': siteName,
-          'address': address,
-        },
+    await db.transaction((txn) async {
+      await txn.update(
+        'sites',
+        updated.toDbMap(),
+        where: 'id = ?',
+        whereArgs: [id],
       );
-      if (response.statusCode == 200) {
-        updated = SiteModel.fromEntity(updated.copyWith(syncStatus: SyncStatus.synced));
-        await db.update(
-          'sites',
-          {'sync_status': SyncStatus.synced.toDbString()},
-          where: 'id = ?',
-          whereArgs: [id],
-        );
-      }
-    } catch (_) {
-      // Offline
-    }
+      await txn.rawUpdate(
+        'UPDATE sites SET local_revision = local_revision + 1 WHERE id = ?',
+        [id],
+      );
+    });
+
+    _dbHelper.notifyChange();
 
     return updated;
   }
@@ -179,29 +178,16 @@ class SiteRepositoryImpl implements SiteRepository {
     final existing = await getSiteById(id);
     if (existing == null) return;
 
-    if (existing.syncStatus == SyncStatus.pendingCreate) {
-      await db.delete('sites', where: 'id = ?', whereArgs: [id]);
-      return;
-    }
-
-    await db.update(
-      'sites',
-      {
-        'is_deleted': 1,
-        'sync_status': SyncStatus.pendingDelete.toDbString(),
-        'updated_at': now.toIso8601String(),
-      },
-      where: 'id = ?',
-      whereArgs: [id],
-    );
-
-    try {
-      final response = await _apiClient.delete('${ApiConstants.sites}/$id');
-      if (response.statusCode == 204 || response.statusCode == 200) {
-        await db.delete('sites', where: 'id = ?', whereArgs: [id]);
-      }
-    } catch (_) {
-      // Offline
-    }
+    await db.transaction((txn) async {
+      await txn.rawUpdate(
+        "UPDATE field_notes SET is_deleted = 1, sync_status = 'SYNCED' WHERE site_id = ?",
+        [id],
+      );
+      await txn.rawUpdate(
+        "UPDATE sites SET is_deleted = 1, sync_status = 'PENDING_DELETE', updated_at = ?, local_revision = local_revision + 1 WHERE id = ?",
+        [now.toUtc().toIso8601String(), id],
+      );
+    });
+    _dbHelper.notifyChange();
   }
 }

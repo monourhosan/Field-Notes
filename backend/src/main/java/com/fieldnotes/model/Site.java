@@ -9,6 +9,11 @@ import java.util.List;
 @Table(name = "sites")
 public class Site {
 
+    @Version
+    private Long version;
+
+    public Long getVersion() { return version; }
+
     @Id
     @Column(length = 36)
     private String id;

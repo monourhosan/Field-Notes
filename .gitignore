@@ -31,3 +31,4 @@ mobile/.dart_tool/
 Thumbs.db
 *.log
 *.tmp
+backend/.env.local.json

@@ -1,16 +1,25 @@
 package com.fieldnotes.dto.site;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 
 public class SiteRequest {
+    @jakarta.validation.constraints.PositiveOrZero
+    private Long version;
+    public Long getVersion() { return version; }
+    public void setVersion(Long value) { version = value; }
+    @Size(max = 36)
     private String id; // Optional client-side generated UUID
 
     @NotBlank(message = "Customer ID is required")
+    @Size(max = 36)
     private String customerId;
 
     @NotBlank(message = "Site name is required")
+    @Size(max = 255)
     private String siteName;
 
+    @Size(max = 16000)
     private String address;
 
     public SiteRequest() {}

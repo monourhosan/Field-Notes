@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
+
 import '../../core/theme/app_theme.dart';
 import '../../domain/entities/sync_status.dart';
 import '../bloc/note/field_note_bloc.dart';
@@ -8,6 +11,7 @@ import '../bloc/note/field_note_event.dart';
 import '../bloc/note/field_note_state.dart';
 import '../bloc/site/site_bloc.dart';
 import '../bloc/site/site_event.dart';
+import '../bloc/site/site_state.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/status_badge.dart';
 import 'field_note_editor_screen.dart';
@@ -23,8 +27,15 @@ class _FieldNoteListScreenState extends State<FieldNoteListScreen> {
   final _searchController = TextEditingController();
   String _selectedStatus = 'ALL';
   String? _selectedSiteId;
+  Timer? _searchDebounce;
 
-  final List<String> _statuses = ['ALL', 'DRAFT', 'IN_PROGRESS', 'COMPLETED', 'PENDING'];
+  final List<String> _statuses = [
+    'ALL',
+    'DRAFT',
+    'IN_PROGRESS',
+    'COMPLETED',
+    'PENDING',
+  ];
 
   @override
   void initState() {
@@ -35,23 +46,24 @@ class _FieldNoteListScreenState extends State<FieldNoteListScreen> {
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _searchController.dispose();
     super.dispose();
   }
 
   void _triggerSearch() {
     context.read<FieldNoteBloc>().add(
-          LoadFieldNotes(
-            query: _searchController.text.trim(),
-            siteId: _selectedSiteId,
-            status: _selectedStatus == 'ALL' ? null : _selectedStatus,
-          ),
-        );
+      LoadFieldNotes(
+        query: _searchController.text.trim(),
+        siteId: _selectedSiteId,
+        status: _selectedStatus == 'ALL' ? null : _selectedStatus,
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final dateFormat = DateFormat('MMM dd, yyyy • hh:mm a');
+    final dateFormat = DateFormat('MMM dd, yyyy - hh:mm a');
 
     return Scaffold(
       appBar: AppBar(title: const Text('Field Notes')),
@@ -59,9 +71,13 @@ class _FieldNoteListScreenState extends State<FieldNoteListScreen> {
         backgroundColor: AppTheme.primaryColor,
         foregroundColor: Colors.white,
         onPressed: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const FieldNoteEditorScreen()),
-          ).then((_) => _triggerSearch());
+          Navigator.of(context)
+              .push(
+                MaterialPageRoute(
+                  builder: (_) => const FieldNoteEditorScreen(),
+                ),
+              )
+              .then((_) => _triggerSearch());
         },
         child: const Icon(Icons.add),
       ),
@@ -88,7 +104,48 @@ class _FieldNoteListScreenState extends State<FieldNoteListScreen> {
                           )
                         : null,
                   ),
-                  onChanged: (_) => _triggerSearch(),
+                  onChanged: (_) {
+                    setState(() {});
+                    _searchDebounce?.cancel();
+                    _searchDebounce = Timer(
+                      const Duration(milliseconds: 250),
+                      _triggerSearch,
+                    );
+                  },
+                ),
+                const SizedBox(height: 10),
+                BlocBuilder<SiteBloc, SiteState>(
+                  builder: (context, state) {
+                    final sites = state is SiteLoaded ? state.sites : [];
+                    return DropdownButtonFormField<String>(
+                      key: ValueKey(sites.map((site) => site.id).join('|')),
+                      initialValue:
+                          sites.any((site) => site.id == _selectedSiteId)
+                          ? _selectedSiteId
+                          : 'ALL',
+                      decoration: const InputDecoration(
+                        labelText: 'Filter by site',
+                      ),
+                      items: [
+                        const DropdownMenuItem(
+                          value: 'ALL',
+                          child: Text('All sites'),
+                        ),
+                        ...sites.map(
+                          (site) => DropdownMenuItem(
+                            value: site.id,
+                            child: Text(site.siteName),
+                          ),
+                        ),
+                      ],
+                      onChanged: (value) {
+                        setState(
+                          () => _selectedSiteId = value == 'ALL' ? null : value,
+                        );
+                        _triggerSearch();
+                      },
+                    );
+                  },
                 ),
                 const SizedBox(height: 10),
                 // Filter chips
@@ -106,7 +163,9 @@ class _FieldNoteListScreenState extends State<FieldNoteListScreen> {
                         selected: isSelected,
                         selectedColor: AppTheme.primaryColor,
                         labelStyle: TextStyle(
-                          color: isSelected ? Colors.white : AppTheme.textPrimary,
+                          color: isSelected
+                              ? Colors.white
+                              : AppTheme.textPrimary,
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
                         ),
@@ -142,14 +201,21 @@ class _FieldNoteListScreenState extends State<FieldNoteListScreen> {
                       message: 'Record notes, measurements, photos, and location coordinates during site visits.',
                       actionLabel: 'Create Field Note',
                       onAction: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(builder: (_) => const FieldNoteEditorScreen()),
-                        ).then((_) => _triggerSearch());
+                        Navigator.of(context)
+                            .push(
+                              MaterialPageRoute(
+                                builder: (_) => const FieldNoteEditorScreen(),
+                              ),
+                            )
+                            .then((_) => _triggerSearch());
                       },
                     );
                   }
                   return ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
                     itemCount: state.notes.length,
                     itemBuilder: (context, index) {
                       final note = state.notes[index];
@@ -159,9 +225,15 @@ class _FieldNoteListScreenState extends State<FieldNoteListScreen> {
                         child: InkWell(
                           borderRadius: BorderRadius.circular(16),
                           onTap: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(builder: (_) => FieldNoteEditorScreen(existingNote: note)),
-                            ).then((_) => _triggerSearch());
+                            Navigator.of(context)
+                                .push(
+                                  MaterialPageRoute(
+                                    builder: (_) => FieldNoteEditorScreen(
+                                      existingNote: note,
+                                    ),
+                                  ),
+                                )
+                                .then((_) => _triggerSearch());
                           },
                           child: Padding(
                             padding: const EdgeInsets.all(16),
@@ -186,14 +258,18 @@ class _FieldNoteListScreenState extends State<FieldNoteListScreen> {
                                       const SizedBox(width: 6),
                                       Tooltip(
                                         message: 'Offline changes pending sync',
-                                        child: Icon(Icons.cloud_upload_outlined, size: 16, color: Colors.amber.shade800),
+                                        child: Icon(
+                                          Icons.cloud_upload_outlined,
+                                          size: 16,
+                                          color: Colors.amber.shade800,
+                                        ),
                                       ),
                                     ],
                                   ],
                                 ),
                                 const SizedBox(height: 6),
                                 Text(
-                                  'Site: ${note.siteName ?? "Site"} • Customer: ${note.customerName ?? "Customer"}',
+                                  'Site: ${note.siteName ?? "Site"} - Customer: ${note.customerName ?? "Customer"}',
                                   style: const TextStyle(
                                     fontSize: 13,
                                     fontWeight: FontWeight.w600,
@@ -216,27 +292,46 @@ class _FieldNoteListScreenState extends State<FieldNoteListScreen> {
                                 Row(
                                   children: [
                                     if (note.location?.isNotEmpty == true) ...[
-                                      const Icon(Icons.location_on_outlined, size: 14, color: AppTheme.textSecondary),
+                                      const Icon(
+                                        Icons.location_on_outlined,
+                                        size: 14,
+                                        color: AppTheme.textSecondary,
+                                      ),
                                       const SizedBox(width: 4),
                                       Text(
                                         note.location!,
-                                        style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          color: AppTheme.textSecondary,
+                                        ),
                                       ),
                                       const SizedBox(width: 12),
                                     ],
                                     if (note.photo?.isNotEmpty == true) ...[
-                                      const Icon(Icons.photo_outlined, size: 14, color: AppTheme.textSecondary),
+                                      const Icon(
+                                        Icons.photo_outlined,
+                                        size: 14,
+                                        color: AppTheme.textSecondary,
+                                      ),
                                       const SizedBox(width: 4),
                                       const Text(
                                         'Photo attached',
-                                        style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: AppTheme.textSecondary,
+                                        ),
                                       ),
                                       const SizedBox(width: 12),
                                     ],
                                     const Spacer(),
                                     Text(
-                                      dateFormat.format(note.dateTime),
-                                      style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary),
+                                      dateFormat.format(
+                                        note.dateTime.toLocal(),
+                                      ),
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        color: AppTheme.textSecondary,
+                                      ),
                                     ),
                                   ],
                                 ),

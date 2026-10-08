@@ -10,13 +10,23 @@ class MockFieldNoteRepository implements FieldNoteRepository {
   List<FieldNote> notes = [];
 
   @override
-  Future<List<FieldNote>> getNotes({String? query, String? siteId, String? status}) async {
+  Future<List<FieldNote>> getNotes({
+    String? query,
+    String? siteId,
+    String? status,
+  }) async {
     return notes.where((n) {
       if (siteId != null && n.siteId != siteId) return false;
-      if (status != null && status.isNotEmpty && status != 'ALL' && n.status != status) return false;
+      if (status != null &&
+          status.isNotEmpty &&
+          status != 'ALL' &&
+          n.status != status) {
+        return false;
+      }
       if (query != null && query.isNotEmpty) {
         final q = query.toLowerCase();
-        return n.title.toLowerCase().contains(q) || (n.description?.toLowerCase().contains(q) ?? false);
+        return n.title.toLowerCase().contains(q) ||
+            (n.description?.toLowerCase().contains(q) ?? false);
       }
       return true;
     }).toList();
@@ -124,7 +134,11 @@ void main() {
       await expectLater(
         bloc.stream,
         emitsThrough(
-          isA<FieldNoteLoaded>().having((s) => s.notes.length, 'notes count', 1),
+          isA<FieldNoteLoaded>().having(
+            (s) => s.notes.length,
+            'notes count',
+            1,
+          ),
         ),
       );
 
@@ -133,7 +147,11 @@ void main() {
       await expectLater(
         bloc.stream,
         emitsThrough(
-          isA<FieldNoteLoaded>().having((s) => s.notes.first.status, 'status', 'IN_PROGRESS'),
+          isA<FieldNoteLoaded>().having(
+            (s) => s.notes.first.status,
+            'status',
+            'IN_PROGRESS',
+          ),
         ),
       );
     });

@@ -75,6 +75,7 @@ class CustomerAndSiteServiceTest {
 
         // User A updates customer
         CustomerRequest updateReq = new CustomerRequest(null, "Acme International", "hq@acme.com");
+        updateReq.setVersion(created.getVersion());
         CustomerDto updated = customerService.updateCustomer(userA.getId(), created.getId(), updateReq);
         assertEquals("Acme International", updated.getName());
 

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+
 import '../../core/theme/app_theme.dart';
 import '../../domain/entities/sync_status.dart';
 import '../bloc/customer/customer_bloc.dart';
@@ -22,7 +23,11 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
     context.read<CustomerBloc>().add(LoadCustomers());
   }
 
-  void _showCustomerDialog({String? id, String? currentName, String? currentContact}) {
+  void _showCustomerDialog({
+    String? id,
+    String? currentName,
+    String? currentContact,
+  }) {
     final nameController = TextEditingController(text: currentName ?? '');
     final contactController = TextEditingController(text: currentContact ?? '');
     final formKey = GlobalKey<FormState>();
@@ -39,13 +44,19 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
               children: [
                 TextFormField(
                   controller: nameController,
-                  decoration: const InputDecoration(labelText: 'Customer Name *'),
-                  validator: (val) => (val == null || val.trim().isEmpty) ? 'Please enter name' : null,
+                  decoration: const InputDecoration(
+                    labelText: 'Customer Name *',
+                  ),
+                  validator: (val) => (val == null || val.trim().isEmpty)
+                      ? 'Please enter name'
+                      : null,
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: contactController,
-                  decoration: const InputDecoration(labelText: 'Contact Information'),
+                  decoration: const InputDecoration(
+                    labelText: 'Contact Information',
+                  ),
                   maxLines: 2,
                 ),
               ],
@@ -61,19 +72,19 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                 if (formKey.currentState?.validate() ?? false) {
                   if (id == null) {
                     context.read<CustomerBloc>().add(
-                          CreateCustomerEvent(
-                            name: nameController.text.trim(),
-                            contactInformation: contactController.text.trim(),
-                          ),
-                        );
+                      CreateCustomerEvent(
+                        name: nameController.text.trim(),
+                        contactInformation: contactController.text.trim(),
+                      ),
+                    );
                   } else {
                     context.read<CustomerBloc>().add(
-                          UpdateCustomerEvent(
-                            id: id,
-                            name: nameController.text.trim(),
-                            contactInformation: contactController.text.trim(),
-                          ),
-                        );
+                      UpdateCustomerEvent(
+                        id: id,
+                        name: nameController.text.trim(),
+                        contactInformation: contactController.text.trim(),
+                      ),
+                    );
                   }
                   Navigator.of(ctx).pop();
                 }
@@ -89,9 +100,7 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Customers'),
-      ),
+      appBar: AppBar(title: const Text('Customers')),
       floatingActionButton: FloatingActionButton(
         backgroundColor: AppTheme.primaryColor,
         foregroundColor: Colors.white,
@@ -125,12 +134,20 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                 return Card(
                   margin: const EdgeInsets.only(bottom: 10),
                   child: ListTile(
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
                     leading: CircleAvatar(
                       backgroundColor: Colors.blue.shade50,
                       child: Text(
-                        customer.name.isNotEmpty ? customer.name[0].toUpperCase() : '?',
-                        style: const TextStyle(fontWeight: FontWeight.w700, color: AppTheme.primaryColor),
+                        customer.name.isNotEmpty
+                            ? customer.name[0].toUpperCase()
+                            : '?',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: AppTheme.primaryColor,
+                        ),
                       ),
                     ),
                     title: Row(
@@ -144,7 +161,11 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                         if (isPending)
                           Tooltip(
                             message: 'Offline changes pending sync',
-                            child: Icon(Icons.cloud_upload_outlined, size: 16, color: Colors.amber.shade800),
+                            child: Icon(
+                              Icons.cloud_upload_outlined,
+                              size: 16,
+                              color: Colors.amber.shade800,
+                            ),
                           ),
                       ],
                     ),
@@ -154,13 +175,20 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                           : 'No contact information',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: AppTheme.textSecondary,
+                      ),
                     ),
-                    trailing: const Icon(Icons.chevron_right, color: AppTheme.textSecondary),
+                    trailing: const Icon(
+                      Icons.chevron_right,
+                      color: AppTheme.textSecondary,
+                    ),
                     onTap: () async {
                       await Navigator.of(context).push(
                         MaterialPageRoute(
-                          builder: (_) => CustomerDetailsScreen(customer: customer),
+                          builder: (_) =>
+                              CustomerDetailsScreen(customer: customer),
                         ),
                       );
                       if (context.mounted) {

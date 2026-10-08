@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+
 import '../../../domain/entities/site.dart';
 
 abstract class SiteState extends Equatable {

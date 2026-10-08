@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+
 import '../../../domain/entities/field_note.dart';
 
 abstract class FieldNoteState extends Equatable {
@@ -25,7 +26,12 @@ class FieldNoteLoaded extends FieldNoteState {
   });
 
   @override
-  List<Object?> get props => [notes, currentQuery, currentSiteId, currentStatus];
+  List<Object?> get props => [
+    notes,
+    currentQuery,
+    currentSiteId,
+    currentStatus,
+  ];
 }
 
 class FieldNoteError extends FieldNoteState {
@@ -34,3 +40,7 @@ class FieldNoteError extends FieldNoteState {
   @override
   List<Object?> get props => [message];
 }
+
+class FieldNoteSaving extends FieldNoteState {}
+
+class FieldNoteSaved extends FieldNoteState {}

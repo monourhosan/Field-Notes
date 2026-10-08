@@ -66,5 +66,9 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSCameraUsageDescription</key><string>Attach a photo to an inspection note.</string>
+	<key>NSPhotoLibraryUsageDescription</key><string>Select a photo for an inspection note.</string>
+	<key>NSLocationWhenInUseUsageDescription</key><string>Record the location of a site inspection.</string>
+	<key>NSLocationUsageDescription</key><string>Record the location of a site inspection.</string>
 </dict>
 </plist>

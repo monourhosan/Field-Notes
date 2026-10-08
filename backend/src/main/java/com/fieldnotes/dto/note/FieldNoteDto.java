@@ -3,7 +3,11 @@ package com.fieldnotes.dto.note;
 import com.fieldnotes.model.FieldNote;
 import java.time.Instant;
 
+
 public class FieldNoteDto {
+    private Long version;
+    public Long getVersion() { return version; }
+
     private String id;
     private String siteId;
     private String siteName;
@@ -22,6 +26,7 @@ public class FieldNoteDto {
     public FieldNoteDto() {}
 
     public FieldNoteDto(FieldNote note) {
+        this.version = note.getVersion();
         this.id = note.getId();
         this.siteId = note.getSite().getId();
         this.siteName = note.getSite().getSiteName();

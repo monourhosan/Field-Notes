@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+
 import '../bloc/sync/sync_bloc.dart';
 import '../bloc/sync/sync_event.dart';
 import '../bloc/sync/sync_state.dart';
@@ -23,7 +24,7 @@ class SyncBanner extends StatelessWidget {
           pendingCount = state.pendingCount;
         }
 
-        if (pendingCount == 0 && !isSyncing) {
+        if (pendingCount == 0 && !isSyncing && state is! SyncFailure) {
           return const SizedBox.shrink();
         }
 
@@ -49,13 +50,17 @@ class SyncBanner extends StatelessWidget {
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  isSyncing
+                  state is SyncFailure
+                      ? state.message
+                      : isSyncing
                       ? 'Synchronizing local changes with server...'
                       : '$pendingCount offline change${pendingCount > 1 ? 's' : ''} waiting to sync',
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
-                    color: isSyncing ? Colors.blue.shade900 : Colors.amber.shade900,
+                    color: isSyncing
+                        ? Colors.blue.shade900
+                        : Colors.amber.shade900,
                   ),
                 ),
               ),
@@ -72,9 +77,15 @@ class SyncBanner extends StatelessWidget {
                   },
                   style: TextButton.styleFrom(
                     visualDensity: VisualDensity.compact,
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
                   ),
-                  child: const Text('Sync Now', style: TextStyle(fontWeight: FontWeight.w700)),
+                  child: const Text(
+                    'Sync Now',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
                 ),
             ],
           ),

@@ -52,7 +52,11 @@ void main() {
       expect(dbMap['status'], 'COMPLETED');
       expect(dbMap['sync_status'], 'PENDING_UPDATE');
 
-      final restored = FieldNoteModel.fromDbMap(dbMap, siteName: 'Plant 4', customerName: 'Energy Inc');
+      final restored = FieldNoteModel.fromDbMap(
+        dbMap,
+        siteName: 'Plant 4',
+        customerName: 'Energy Inc',
+      );
       expect(restored.id, note.id);
       expect(restored.title, note.title);
       expect(restored.siteName, 'Plant 4');

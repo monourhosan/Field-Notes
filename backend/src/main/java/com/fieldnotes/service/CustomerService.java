@@ -3,6 +3,7 @@ package com.fieldnotes.service;
 import com.fieldnotes.dto.customer.CustomerDto;
 import com.fieldnotes.dto.customer.CustomerRequest;
 import com.fieldnotes.exception.ResourceNotFoundException;
+import com.fieldnotes.exception.ConflictException;
 import com.fieldnotes.model.Customer;
 import com.fieldnotes.model.User;
 import com.fieldnotes.repository.CustomerRepository;
@@ -20,10 +21,13 @@ public class CustomerService {
 
     private final CustomerRepository customerRepository;
     private final UserRepository userRepository;
+    private final com.fieldnotes.repository.SiteRepository sites;
+    private final com.fieldnotes.repository.FieldNoteRepository notes;
 
-    public CustomerService(CustomerRepository customerRepository, UserRepository userRepository) {
+    public CustomerService(CustomerRepository customerRepository, UserRepository userRepository, com.fieldnotes.repository.SiteRepository sites, com.fieldnotes.repository.FieldNoteRepository notes) {
         this.customerRepository = customerRepository;
         this.userRepository = userRepository;
+        this.sites = sites; this.notes = notes;
     }
 
     @Transactional
@@ -35,6 +39,8 @@ public class CustomerService {
                 ? request.getId()
                 : UUID.randomUUID().toString();
 
+        if (customerRepository.existsById(customerId)) throw new ConflictException("Record ID already exists");
+
         Customer customer = new Customer(
                 customerId,
                 user,
@@ -42,7 +48,7 @@ public class CustomerService {
                 request.getContactInformation()
         );
 
-        customer = customerRepository.save(customer);
+        customer = customerRepository.saveAndFlush(customer);
         return new CustomerDto(customer);
     }
 
@@ -66,11 +72,12 @@ public class CustomerService {
         Customer customer = customerRepository.findByIdAndUserIdAndDeletedFalse(customerId, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Customer not found: " + customerId));
 
+        if (!java.util.Objects.equals(request.getVersion(), customer.getVersion())) throw new ConflictException("Stale record version");
         customer.setName(request.getName().trim());
         customer.setContactInformation(request.getContactInformation());
         customer.setUpdatedAt(Instant.now());
 
-        customer = customerRepository.save(customer);
+        customer = customerRepository.saveAndFlush(customer);
         return new CustomerDto(customer);
     }
 
@@ -79,8 +86,17 @@ public class CustomerService {
         Customer customer = customerRepository.findByIdAndUserIdAndDeletedFalse(customerId, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Customer not found: " + customerId));
 
+        Instant deletedAt = Instant.now();
+        for (var site : sites.findByCustomerId(customer.getId())) {
+            site.setDeleted(true);
+            site.setUpdatedAt(deletedAt);
+            for (var note : notes.findBySiteId(site.getId())) {
+                note.setDeleted(true);
+                note.setUpdatedAt(deletedAt);
+            }
+        }
         customer.setDeleted(true);
         customer.setUpdatedAt(Instant.now());
-        customerRepository.save(customer);
+        customerRepository.saveAndFlush(customer);
     }
 }

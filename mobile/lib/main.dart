@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+
 import 'core/theme/app_theme.dart';
 import 'data/local/database_helper.dart';
 import 'data/local/settings_local_data_source.dart';
@@ -16,7 +17,9 @@ import 'presentation/bloc/site/site_bloc.dart';
 import 'presentation/bloc/note/field_note_bloc.dart';
 import 'presentation/bloc/sync/sync_bloc.dart';
 import 'presentation/bloc/settings/settings_bloc.dart';
+import 'presentation/bloc/settings/settings_event.dart';
 import 'presentation/screens/splash_screen.dart';
+import 'presentation/widgets/sync_coordinator.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -27,15 +30,36 @@ void main() async {
   // Initialize Local Settings Data Source
   final settingsDataSource = await SettingsLocalDataSource.create();
 
+  await dbHelper.useServer(settingsDataSource.getBaseUrl());
+  settingsDataSource.onServerChanged = dbHelper.useServer;
+
+  final initialDefaultStatus = settingsDataSource.getDefaultNoteStatus();
+
   // Initialize ApiClient
   final apiClient = ApiClient(settingsDataSource);
 
   // Initialize Repositories
   final authRepository = AuthRepositoryImpl(apiClient, settingsDataSource);
-  final customerRepository = CustomerRepositoryImpl(dbHelper, apiClient, settingsDataSource);
-  final siteRepository = SiteRepositoryImpl(dbHelper, apiClient);
-  final fieldNoteRepository = FieldNoteRepositoryImpl(dbHelper, apiClient);
-  final syncRepository = SyncRepositoryImpl(dbHelper, apiClient, settingsDataSource);
+  final customerRepository = CustomerRepositoryImpl(
+    dbHelper,
+    apiClient,
+    settingsDataSource,
+  );
+  final siteRepository = SiteRepositoryImpl(
+    dbHelper,
+    apiClient,
+    settingsDataSource,
+  );
+  final fieldNoteRepository = FieldNoteRepositoryImpl(
+    dbHelper,
+    apiClient,
+    settingsDataSource,
+  );
+  final syncRepository = SyncRepositoryImpl(
+    dbHelper,
+    apiClient,
+    settingsDataSource,
+  );
   final settingsRepository = SettingsRepositoryImpl(settingsDataSource);
 
   runApp(
@@ -46,6 +70,9 @@ void main() async {
       fieldNoteRepository: fieldNoteRepository,
       syncRepository: syncRepository,
       settingsRepository: settingsRepository,
+      initialDefaultStatus: initialDefaultStatus,
+      settingsDataSource: settingsDataSource,
+      dbHelper: dbHelper,
     ),
   );
 }
@@ -57,6 +84,9 @@ class FieldNotesApp extends StatelessWidget {
   final FieldNoteRepositoryImpl fieldNoteRepository;
   final SyncRepositoryImpl syncRepository;
   final SettingsRepositoryImpl settingsRepository;
+  final String initialDefaultStatus;
+  final SettingsLocalDataSource settingsDataSource;
+  final DatabaseHelper dbHelper;
 
   const FieldNotesApp({
     super.key,
@@ -66,36 +96,43 @@ class FieldNotesApp extends StatelessWidget {
     required this.fieldNoteRepository,
     required this.syncRepository,
     required this.settingsRepository,
+    required this.initialDefaultStatus,
+    required this.settingsDataSource,
+    required this.dbHelper,
   });
 
   @override
   Widget build(BuildContext context) {
-    return MultiBlocProvider(
-      providers: [
-        BlocProvider<AuthBloc>(
-          create: (_) => AuthBloc(authRepository),
+    return RepositoryProvider<SyncRepositoryImpl>.value(
+      value: syncRepository,
+      child: MultiBlocProvider(
+        providers: [
+          BlocProvider<AuthBloc>(create: (_) => AuthBloc(authRepository)),
+          BlocProvider<CustomerBloc>(
+            create: (_) => CustomerBloc(customerRepository),
+          ),
+          BlocProvider<SiteBloc>(create: (_) => SiteBloc(siteRepository)),
+          BlocProvider<FieldNoteBloc>(
+            create: (_) => FieldNoteBloc(fieldNoteRepository),
+          ),
+          BlocProvider<SyncBloc>(create: (_) => SyncBloc(syncRepository)),
+          BlocProvider<SettingsBloc>(
+            create: (_) => SettingsBloc(
+              settingsRepository,
+              initialDefaultStatus: initialDefaultStatus,
+            )..add(LoadSettings()),
+          ),
+        ],
+        child: SyncCoordinator(
+          dbHelper: dbHelper,
+          settings: settingsDataSource,
+          child: MaterialApp(
+            title: 'Field Notes',
+            debugShowCheckedModeBanner: false,
+            theme: AppTheme.lightTheme,
+            home: const SplashScreen(),
+          ),
         ),
-        BlocProvider<CustomerBloc>(
-          create: (_) => CustomerBloc(customerRepository),
-        ),
-        BlocProvider<SiteBloc>(
-          create: (_) => SiteBloc(siteRepository),
-        ),
-        BlocProvider<FieldNoteBloc>(
-          create: (_) => FieldNoteBloc(fieldNoteRepository),
-        ),
-        BlocProvider<SyncBloc>(
-          create: (_) => SyncBloc(syncRepository),
-        ),
-        BlocProvider<SettingsBloc>(
-          create: (_) => SettingsBloc(settingsRepository),
-        ),
-      ],
-      child: MaterialApp(
-        title: 'Field Notes',
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.lightTheme,
-        home: const SplashScreen(),
       ),
     );
   }
