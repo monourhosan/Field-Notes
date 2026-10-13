@@ -12,7 +12,6 @@ import '../bloc/sync/sync_bloc.dart';
 import '../bloc/sync/sync_event.dart';
 import '../bloc/sync/sync_state.dart';
 import 'login_screen.dart';
-import 'sync_conflicts_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -355,15 +354,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 const SizedBox(height: 28),
 
-                ListTile(
-                  leading: const Icon(Icons.merge_type),
-                  title: const Text('Review sync conflicts'),
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const SyncConflictsScreen(),
-                    ),
-                  ),
-                ),
                 // Sign out
                 BlocBuilder<AuthBloc, AuthState>(
                   builder: (context, state) {

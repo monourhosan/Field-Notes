@@ -1,6 +1,5 @@
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../local/settings_local_data_source.dart';
@@ -60,17 +59,9 @@ class ApiClient {
       final stringParams = queryParameters.map(
         (key, value) => MapEntry(key, value?.toString() ?? ''),
       )..removeWhere((key, value) => value.isEmpty);
-      final uri = Uri.parse(fullUrl).replace(queryParameters: stringParams);
-      if (kReleaseMode && uri.scheme != 'https') {
-        throw StateError('Configure an HTTPS server in Settings');
-      }
-      return uri;
+      return Uri.parse(fullUrl).replace(queryParameters: stringParams);
     }
-    final uri = Uri.parse(fullUrl);
-    if (kReleaseMode && uri.scheme != 'https') {
-      throw StateError('Configure an HTTPS server in Settings');
-    }
-    return uri;
+    return Uri.parse(fullUrl);
   }
 
   Future<http.Response> get(

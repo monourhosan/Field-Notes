@@ -295,7 +295,7 @@ class SyncRepositoryImpl implements SyncRepository {
 
     if (conflicts.isNotEmpty) {
       throw StateError(
-        '${conflicts.length} conflict(s) require review in Settings; your edits are preserved',
+        '${conflicts.length} conflict(s) detected during sync; local edits are preserved',
       );
     }
   }

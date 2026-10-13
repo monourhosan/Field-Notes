@@ -102,9 +102,6 @@ class SettingsLocalDataSource {
         'Use a server origin, such as https://notes.example.com, without /api',
       );
     }
-    if (kReleaseMode && uri.scheme != 'https') {
-      throw ArgumentError('Release builds require HTTPS');
-    }
     if (url != getBaseUrl() && getUserId() != null) {
       throw StateError('Sign out before changing servers');
     }

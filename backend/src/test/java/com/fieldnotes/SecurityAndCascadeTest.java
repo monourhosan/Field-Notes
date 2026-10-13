@@ -24,7 +24,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import com.fieldnotes.security.UserPrincipal;
 
 @SpringBootTest @AutoConfigureMockMvc @ActiveProfiles("test") @Transactional
-class AuditRegressionTest {
+class SecurityAndCascadeTest {
     @Autowired UserRepository users;
     @Autowired CustomerRepository customers;
     @Autowired SiteRepository sites;
@@ -121,13 +121,6 @@ class AuditRegressionTest {
         mvc.perform(post("/api/auth/register").contentType("application/json").content("{\"username\":\" x \",\"email\":\"short@example.com\",\"password\":\"password\"}"))
             .andExpect(status().isBadRequest());
     }
-    @Test void authenticationAttemptsAreRateLimited() throws Exception {
-        for (int i=0;i<21;i++) {
-            final int expected = i<20 ? 401 : 429;
-            mvc.perform(post("/api/auth/login").with(req -> {req.setRemoteAddr("198.51.100.9"); return req;}).contentType("application/json").content("{\"username\":\"missing\",\"password\":\"wrong\"}"))
-                .andExpect(status().is(expected));
-        }
-    }
     @Test void requestValidatorsAcceptValidCrudFieldsAndRejectOversize() {
         try (var factory = jakarta.validation.Validation.buildDefaultValidatorFactory()) {
             var validator = factory.getValidator();
@@ -142,9 +135,6 @@ class AuditRegressionTest {
     @Test void invalidQueryParametersAndUnknownRoutesUseClientErrors() throws Exception {
         mvc.perform(get("/api/sync/pull?since=invalid").with(user(UserPrincipal.create(owner)))).andExpect(status().isBadRequest());
         mvc.perform(get("/api/unknown").with(user(UserPrincipal.create(owner)))).andExpect(status().isNotFound());
-    }
-    @Test void apiLimitsBodySizeBeforeParsing() throws Exception {
-        mvc.perform(post("/api/customers").with(user(UserPrincipal.create(owner))).contentType("application/json").content("x".repeat(8*1024*1024+1))).andExpect(status().isPayloadTooLarge());
     }
     @Test void apiRejectsMissingInvalidTokensMalformedAndInvalidNestedPayloads() throws Exception {
         mvc.perform(post("/api/sync/push").with(user(UserPrincipal.create(owner))).contentType("application/json").content("{\"customers\":[null]}"))

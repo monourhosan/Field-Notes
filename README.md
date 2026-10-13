@@ -1,120 +1,125 @@
 # Field Notes
 
-Field inspection application with a Flutter client, local SQLite storage, and a Spring Boot REST API. The data hierarchy is User → Customer → Site → Field Note.
+A full-stack mobile application and REST backend for field workers to record and manage site inspection notes with seamless offline capability.
 
-## Architecture
+## Overview
 
-- `backend/`: Java 21, Spring Boot 3.5.16, Spring Security, BCrypt, signed JWTs, Spring Data JPA, MySQL, Flyway.
-- `mobile/lib/domain/`: entities and repository contracts.
-- `mobile/lib/data/`: SQLite repositories, models, secure token storage, HTTP client, reconciliation.
-- `mobile/lib/presentation/`: BLoCs, screens, widgets and foreground sync coordinator.
-- `scripts/`: backend launcher and live API smoke checks.
+The application follows the natural hierarchy:
+**User → Customer → Site → Field Note**
 
-All customer/site/note writes go to SQLite first. A foreground coordinator syncs after local changes, sign-in, resume, connectivity changes and a periodic retry. SQLite queries and the outbox are scoped by user; different server origins use separate database files. Preferences remain local. Token and account identity are stored together in one platform secure-storage session record.
+- **Customer:** Name, Contact Information.
+- **Site:** Site Name, Address, associated Customer.
+- **Field Note:** Title, Description, Location (GPS coordinates), Date & Time, Status, and an optional Photo.
 
-Pushes send customers before sites before notes, in batches of at most 200 records and 4 MiB. The server validates requests, enforces ownership and uses optimistic record versions instead of device clocks. Failed requests preserve the outbox. Retries of identical writes are acknowledged. Local revision counters protect edits made during an upload.
+All operations (create, view, edit, delete, search, filter) work seamlessly **offline-first** using a local SQLite database on the mobile device. When internet connectivity is restored, local changes automatically synchronize with the Spring Boot backend. If the app is reinstalled or local data is cleared, logging in restores all data from the backend.
 
-Pull currently reconciles the complete account snapshot, including tombstones. `since` remains accepted for compatibility but does not exclude rows: timestamp cursors can miss transactions that commit out of order. Unchanged accounts use conditional requests with ETags calculated from record versions; the cached tag is committed with its SQLite snapshot. Changed accounts still require a full snapshot; measure account size before a large deployment. Updates from the server cannot overwrite pending edits. Conflicts are preserved in SQLite and reviewed in Settings. A server-deleted record cannot be resurrected; retained local content can be copied into a new record.
+## Tech Stack
 
-Deleting a customer soft-deletes its sites and notes. Deleting a site soft-deletes its notes. SQLite migrations to v3 preserve records and outbox states, add constraints and versions, recover orphan rows, and scope conflict keys by account and record type. Inspection times use UTC storage and local display; DATETIME(6) supports dates beyond 2038.
+### Mobile App
+- **Framework:** Flutter (Dart)
+- **State Management:** BLoC (`flutter_bloc`)
+- **Local Storage:** SQLite (`sqflite` / `sqflite_common_ffi`)
+- **Networking:** REST API communication via `http` client
+- **Hardware Integration:** `geolocator` for GPS and `image_picker` for camera/gallery photo capture
+
+### Backend
+- **Framework:** Java 21, Spring Boot 3
+- **Database:** MySQL (relational schema with Flyway migrations)
+- **Security:** Spring Security, BCrypt password hashing, JWT authentication
+- **Data Isolation:** User-scoped queries and repositories; users only access their own records
+- **Relational Design:** Normalized relational model using JPA relationships (`@ManyToOne`, `@OneToMany`) and JOIN queries without duplicating customer or site information
 
 ## Features
 
-| Capability | Implementation |
-| --- | --- |
-| Register, sign in, restore session, sign out | JWT API and secure local token |
-| Customer and site CRUD | Local repositories and owned REST endpoints |
-| Notes, description, inspection time, status | Editor and SQLite/API models |
-| Photo attachment/removal | Image picker, compressed image and bounded base64 payload |
-| GPS capture and manual coordinates | Geolocator and editable location field |
-| Search and combined site/status filters | SQLite and server queries |
-| Offline create/update/delete | Persistent outbox and tombstones |
-| Automatic foreground/manual synchronization | Coordinator, Sync BLoC and Settings |
-| Conflicts and concurrent edits | Version checks, local revisions and review screen |
-| Default note status | Loaded before app startup; persisted locally |
+- **Authentication:** Online user registration and login with secure token storage.
+- **Customer & Site Management:** Full CRUD operations for customers and sites.
+- **Field Notes:** Full CRUD for notes with status tracking, formatted date/time, GPS coordinates, and optional photos.
+- **Offline-First:** All mutations write to local SQLite first with persistent outbox queueing.
+- **Automatic Sync:** Syncs automatically upon reconnection, app resume, login, or manual trigger.
+- **Data Recovery:** Reinstalling or clearing local data restores complete data upon login.
+- **Search:** Search field notes across title, description, site name, or customer name.
+- **Filters:** Filter notes by status (`DRAFT`, `IN_PROGRESS`, `COMPLETED`, `PENDING`), by site, or combined.
+- **Permissions:** Graceful handling for camera, gallery, and GPS location permissions with fallback to manual entry.
+- **Settings:** Screen with "Default Note Status" option that is saved locally and auto-applied when creating new notes.
 
-## Backend setup
+## Backend Setup
 
-Install Java 21 and Maven 3.9+, and start MySQL 8+. MySQL satisfies the database stack required by `installation.pdf`. Create `field_notes_db` and a dedicated application user. Give the migration account schema permissions; use a separate runtime account with data permissions in production if supplying `SPRING_FLYWAY_USER` and `SPRING_FLYWAY_PASSWORD`.
+### Prerequisites
+- Java 21+
+- Maven 3.9+
+- MySQL 8.x
 
-The MariaDB JDBC driver remains available for existing installations, but the PDF conformity verification uses MySQL 8.4.11.
+### Configuration
+Configure your database connection and JWT secret in environment variables or `backend/src/main/resources/application.yml`:
 
-Required environment variables:
+- `DB_URL`: `jdbc:mysql://localhost:3306/field_notes_db?serverTimezone=UTC`
+- `DB_USERNAME`: Database username (default: `field_notes`)
+- `DB_PASSWORD`: Database password
+- `JWT_SECRET`: Secret key for JWT signing (at least 32 characters)
+- `SERVER_PORT`: `8080` (default)
 
-- `DB_PASSWORD`: dedicated database user's password.
-- `JWT_SECRET`: random signing secret of at least 32 UTF-8 bytes, stored outside source control.
-
-Optional variables: `DB_URL` (default `jdbc:mysql://localhost:3306/field_notes_db?serverTimezone=UTC`), `DB_USERNAME` (default `field_notes`), `SERVER_PORT` (8080), `JWT_EXPIRATION_MS` (24 hours), `CORS_ORIGINS` (comma-separated exact origins, default localhost/127.0.0.1 port 7357).
-
+### Build and Run
 ```powershell
 cd backend
 mvn clean package
 java -jar target/field-notes-backend-1.0.0.jar
 ```
 
-On this workstation, an ignored `backend/.env.local.json` contains generated local development credentials. `scripts/start-backend.ps1` loads it when present and also supports ordinary environment variables. It accepts `-Java` for a Java executable outside PATH. Never commit this file or deploy its local credentials.
-
-MySQL 8.4.11 is installed separately under `%USERPROFILE%/.cache/field-notes-audit/mysql`, listening on loopback port 3307. Existing application records were copied with row counts checked, and the local backend configuration now selects MySQL. The original XAMPP MariaDB database and its backup remain intact. Restart this local MySQL instance and backend from the project root:
-
+Alternatively, you can launch using the included PowerShell script:
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-mysql.ps1
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-backend.ps1 -Java "C:/Users/lette/.cache/field-notes-audit/java/jdk-21.0.12.1+1/bin/java.exe"
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-backend.ps1
 ```
 
-These commands apply execution policy only to the launched process. They do not install Windows services; production should use its own managed database and application lifecycle.
+## Mobile App Setup
 
-Flyway upgrades the schema; Hibernate validates it. Automatic baselining is disabled, so an unversioned existing database needs an explicit reviewed migration rather than silently accepting an unknown schema. Back up production data before upgrades.
+### Prerequisites
+- Flutter SDK (3.x+)
+- Android SDK / emulator or physical device
 
-## Client setup
-
-Use Flutter 3.47.6 / Dart 3.13.5 (the SDK used for this audit), with the Android SDK and Java 21 for Android builds. On Windows, Flutter plugins require Developer Mode or suitable symlink permissions. Run commands from `mobile/`:
-
+### Run App
+From the `mobile/` directory:
 ```powershell
+cd mobile
 flutter pub get
-dart run sqflite_common_ffi_web:setup
 flutter analyze
 flutter test
 flutter run
 ```
 
-Configure the server using the gear on the sign-in screen. Android emulator development uses `http://10.0.2.2:8080`; desktop/web development uses `http://localhost:8080`. Physical devices need the development machine's reachable address. Sign out before changing servers. Release builds require HTTPS; put the backend behind TLS and set the deployed web origin in `CORS_ORIGINS`.
-
+### Build APK
 ```powershell
 flutter build apk --debug
 flutter build apk --release
-flutter build web
 ```
 
-Android release signing uses `ANDROID_KEYSTORE_PATH`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, and `ANDROID_KEY_PASSWORD`. Without these, release output is unsigned; debug keys are never used for release. iOS/macOS builds require macOS/Xcode, appropriate signing, and platform testing. Permission descriptions and secure-storage entitlements are included.
+## API Endpoints
 
-For web, serve the generated SQLite worker/WASM files at the app's origin. Token protection follows browser security constraints; deploy over HTTPS and protect the origin against injected scripts. SQLite inspection data relies on the operating system/browser profile's storage protection and is not independently encrypted by this application.
+### Authentication
+- `POST /api/auth/register` — Create a new worker account
+- `POST /api/auth/login` — Sign in and receive JWT token
 
-## API
+### Customers
+- `GET /api/customers` — List authenticated user's customers
+- `POST /api/customers` — Create a customer
+- `GET /api/customers/{id}` — Get customer details
+- `PUT /api/customers/{id}` — Update a customer
+- `DELETE /api/customers/{id}` — Delete a customer (cascades to sites & notes)
 
-- `POST /api/auth/register`, `POST /api/auth/login`.
-- Owned CRUD at `/api/customers`, `/api/sites`, `/api/notes`.
-- Note query parameters: `query`, `siteId`, `status`.
-- `POST /api/sync/push`, `GET /api/sync/pull`.
-- REST updates require the record's `version`; sync writes supply `baseVersion` (null for new records).
-- Statuses: `DRAFT`, `IN_PROGRESS`, `COMPLETED`, `PENDING`.
-- JSON requests are limited to 8 MiB. Auth endpoints allow 20 attempts per minute per remote address; production deployments should also enforce distributed edge rate limits, especially behind proxies.
+### Sites
+- `GET /api/sites` — List authenticated user's sites
+- `POST /api/sites` — Create a site under a customer
+- `GET /api/sites/{id}` — Get site details
+- `PUT /api/sites/{id}` — Update a site
+- `DELETE /api/sites/{id}` — Delete a site (cascades to notes)
 
-## Verification
+### Field Notes
+- `GET /api/notes?query={q}&siteId={siteId}&status={status}` — Search and filter notes
+- `POST /api/notes` — Create a field note
+- `GET /api/notes/{id}` — Get field note details
+- `PUT /api/notes/{id}` — Update a field note
+- `DELETE /api/notes/{id}` — Delete a field note
 
-```powershell
-cd backend
-mvn clean package
-cd ../mobile
-flutter analyze
-flutter test
-cd ..
-python scripts/api_smoke.py
-cd mobile
-flutter test test/live_sync_verification.dart
-```
-
-The smoke script needs a running backend and creates two uniquely named test accounts and test records. It soft-deletes its records after checking authentication, ownership, CRUD versions, search, sync idempotency and cascading tombstones. Override `API_BASE_URL` to use another dedicated test backend.
-
-The GitHub workflow in `.github/workflows/build.yml` builds and tests the Maven/Java 21 backend and Flutter app, provisions MySQL, runs live API/offline/reinstall checks, and compiles web and Android outputs. The previous Gradle/Java 17 workflow did not match this project. The workflow has been checked locally; a hosted Actions run still requires committing and pushing the changes.
-
-See [REQUIREMENTS_COMPLIANCE.md](REQUIREMENTS_COMPLIANCE.md) for the complete `installation.pdf` mapping and [AUDIT_REPORT.md](AUDIT_REPORT.md) for audit evidence and platform verification limits. Passing tests are evidence for the scenarios exercised, not a guarantee that every possible bug has been eliminated.
+### Synchronization
+- `POST /api/sync/push` — Push offline outbox batch (customers, sites, notes)
+- `GET /api/sync/pull` — Pull current account snapshot
